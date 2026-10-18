@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Stage 2 &amp; RS Screen</h1>
+<p class="sub">Advancing stocks ane relative strength ranking · Data: {{ updated }}</p>
+
+<div class="card"><div class="stats" id="stats"></div></div>
+
+<div class="card">
+  <div class="filters">
+    <label>Search<input id="s" placeholder="symbol"></label>
+    <label>Stage<select id="stg"><option value="2">Stage 2</option><option value="">All</option><option value="1">Stage 1</option><option value="3">Stage 3</option><option value="4">Stage 4</option></select></label>
+    <label>Min RS: <span id="rsv">80</span><input id="rs" type="range" min="1" max="99" value="80"></label>
+    <label>Max days in Stage 2: <span id="dv">365</span><input id="dm" type="range" min="0" max="365" value="365"></label>
+    <label>Min avg volume<input id="mv" type="number" value="100000"></label>
+  </div>
+  <div class="mut" id="count"></div>
+  <div class="wrap"><table>
+    <thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="pager"><button class="btn sm" onclick="pg(-1)">‹ Prev</button><span id="pn"></span><button class="btn sm" onclick="pg(1)">Next ›</button></div>
+</div>
+<p class="mut" style="font-size:12px">Stage 2 = price 50/150/200 DMA ni upar, 150&gt;200, 200 DMA rising, 50&gt;150, ane price 52W high thi 25% ni andar (52W low thi 30%+ upar). RS = 3/6/9/12 mahina na return nu weighted percentile (1-99).</p>
+{% endblock %}
+{% block scripts %}
+<script>
+let ALL=[], VIEW=[], page=0, sortK='rs', sortD=-1; const PS=50;
+const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['rs','RS'],['stage','Stage'],['days_s2','Days S2'],['from_hi','From 52W H'],['sma50','50 DMA'],['sma200','200 DMA'],['zone','Zone','l']];
+head.innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" onclick="sortBy('${c[0]}')">${c[1]}</th>`).join('');
+const f2=n=>n==null?'-':n.toFixed(2);
+function apply(){
+  const t=s.value.trim().toUpperCase(), st=stg.value, r=+rs.value, d=+dm.value, v=+mv.value||0;
+  rsv.textContent=r; dv.textContent=d;
+  VIEW=ALL.filter(x=>(!t||x.symbol.includes(t))&&(!st||x.stage==st)&&(x.rs??0)>=r&&x.days_s2<=d&&x.avg_vol>=v);
+  VIEW.sort((a,b)=>{const A=a[sortK]??-1e9,B=b[sortK]??-1e9;return (A>B?1:A<B?-1:0)*sortD});
+  page=0; draw();
+}
+function sortBy(k){ sortD = sortK==k? -sortD : -1; sortK=k; apply(); }
+function pg(d){ const m=Math.max(0,Math.ceil(VIEW.length/PS)-1); page=Math.min(m,Math.max(0,page+d)); draw(); }
+function draw(){
+  count.textContent=VIEW.length+' stocks';
+  pn.textContent=(page+1)+' / '+Math.max(1,Math.ceil(VIEW.length/PS));
+  rows.innerHTML=VIEW.slice(page*PS,page*PS+PS).map(x=>`<tr>
+   <td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td>
+   <td><span class="rs ${x.rs>=80?'hi':x.rs<40?'lo':''}">${x.rs??'-'}</span></td>
+   <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.stage==2?x.days_s2:'-'}</td>
+   <td class="${x.from_hi<-25?'neg':''}">${x.from_hi}%</td><td>${f2(x.sma50)}</td><td>${f2(x.sma200)}</td><td class="l mut">${x.zone||''}</td></tr>`).join('')
+   || '<tr><td colspan="10" class="empty">Kai nathi malyu.</td></tr>';
+}
+[s,stg,rs,dm,mv].forEach(e=>e.oninput=apply);
+fetch('/api/stocks').then(r=>r.json()).then(d=>{
+  ALL=d.stocks;
+  const s2=ALL.filter(x=>x.stage==2);
+  const st=(l,v)=>`<div class="stat"><small>${l}</small><b>${v}</b></div>`;
+  stats.innerHTML=st('Stocks scanned',ALL.length)+st('In Stage 2',s2.length)
+    +st('% in Stage 2',ALL.length?Math.round(s2.length/ALL.length*100)+'%':'-')
+    +st('New in S2 (5d)',s2.filter(x=>x.days_s2<=5).length)
+    +st('Avg days in S2',s2.length?Math.round(s2.reduce((a,x)=>a+x.days_s2,0)/s2.length):'-')
+    +st('Stage 4',ALL.filter(x=>x.stage==4).length);
+  apply();
+});
+</script>
+{% endblock %}

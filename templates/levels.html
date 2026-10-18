@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>52-Week Levels</h1>
+<p class="sub">Point, VHIGH, VLOW ane Fib levels · Data: {{ updated }}</p>
+
+<div class="card">
+  <input id="q" list="syms" placeholder="Stock nu naam / symbol lakho (e.g. RELIANCE)" style="width:100%;font-size:16px">
+  <datalist id="syms"></datalist>
+  <div id="one"></div>
+</div>
+
+<div class="card">
+  <div class="filters">
+    <label>Search<input id="s" placeholder="symbol"></label>
+    <label>Zone<select id="zone"><option value="">All</option><option>Above VHIGH</option><option>Near VHIGH (sell zone)</option><option>Inside range</option><option>Near VLOW (buy zone)</option><option>Below VLOW</option></select></label>
+    <label>Min avg volume<input id="mv" type="number" value="100000"></label>
+    <label>Stage<select id="stg"><option value="">All</option><option value="2">Stage 2</option><option value="1">Stage 1</option><option value="3">Stage 3</option><option value="4">Stage 4</option></select></label>
+  </div>
+  <div class="mut" id="count"></div>
+  <div class="wrap"><table>
+    <thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="pager"><button class="btn sm" onclick="pg(-1)">‹ Prev</button><span id="pn"></span><button class="btn sm" onclick="pg(1)">Next ›</button></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let ALL=[], VIEW=[], page=0, sortK='symbol', sortD=1; const PS=50;
+const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['point','Point'],['vhigh','VHIGH'],['vlow','VLOW'],['zone','Zone'],['stage','Stage'],['rs','RS']];
+head.innerHTML = cols.map(c=>`<th class="sort ${c[2]||''}" onclick="sortBy('${c[0]}')">${c[1]}</th>`).join('');
+const f2=n=>n==null?'-':n.toFixed(2);
+function card(s){
+  if(!s){one.innerHTML='';return;}
+  const F=s.fib||{};
+  one.innerHTML=`<h2 style="margin-top:14px">${s.symbol} · ₹${f2(s.price)} <span class="${s.chg>=0?'pos':'neg'}">${s.chg}%</span> <span class="tag s${s.stage}">Stage ${s.stage}</span></h2>
+  <div class="mut">${s.zone||''}</div>
+  <div class="lv">
+   <div><small>Point (POC)</small><b>${f2(s.point)}</b></div><div><small>VHIGH</small><b>${f2(s.vhigh)}</b></div><div><small>VLOW</small><b>${f2(s.vlow)}</b></div>
+   <div><small>0 · Break down</small><b>${f2(F.breakdown)}</b></div><div><small>0.25 · Buy reversal</small><b class="pos">${f2(F.buy_reversal)}</b></div>
+   <div><small>0.75 · Sell reversal</small><b class="neg">${f2(F.sell_reversal)}</b></div><div><small>1 · Breakout</small><b>${f2(F.breakout)}</b></div>
+   <div><small>1.272 · Target 1</small><b>${f2(F.target1)}</b></div></div>`;
+}
+function apply(){
+  const t=s.value.trim().toUpperCase(), z=zone.value, mv=+mv_.value||0, st=stg.value;
+  VIEW=ALL.filter(x=>x.point!=null&&(!t||x.symbol.includes(t))&&(!z||x.zone==z)&&x.avg_vol>=mv&&(!st||x.stage==st));
+  VIEW.sort((a,b)=>{const A=a[sortK],B=b[sortK];return (A>B?1:A<B?-1:0)*sortD});
+  page=0; draw();
+}
+const mv_=document.getElementById('mv');
+function sortBy(k){ sortD = sortK==k? -sortD : 1; sortK=k; apply(); }
+function pg(d){ const m=Math.max(0,Math.ceil(VIEW.length/PS)-1); page=Math.min(m,Math.max(0,page+d)); draw(); }
+function draw(){
+  count.textContent=VIEW.length+' stocks';
+  pn.textContent=(page+1)+' / '+Math.max(1,Math.ceil(VIEW.length/PS));
+  rows.innerHTML=VIEW.slice(page*PS,page*PS+PS).map(x=>`<tr class="clk" onclick="pick('${x.symbol}')">
+   <td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td>
+   <td>${f2(x.point)}</td><td>${f2(x.vhigh)}</td><td>${f2(x.vlow)}</td><td class="mut">${x.zone}</td>
+   <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.rs??'-'}</td></tr>`).join('')
+   || '<tr><td colspan="9" class="empty">Data nathi. Pehla GitHub Actions job chalavo.</td></tr>';
+}
+function pick(sym){ q.value=sym; card(ALL.find(x=>x.symbol==sym)); window.scrollTo({top:0,behavior:'smooth'}); }
+q.oninput=()=>card(ALL.find(x=>x.symbol==q.value.trim().toUpperCase()));
+[s,zone,mv_,stg].forEach(e=>e.oninput=apply);
+fetch('/api/stocks').then(r=>r.json()).then(d=>{ALL=d.stocks; syms.innerHTML=ALL.map(x=>`<option value="${x.symbol}">`).join(''); apply();});
+</script>
+{% endblock %}

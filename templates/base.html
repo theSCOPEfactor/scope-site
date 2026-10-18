@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope · Change your vision</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">◉</span><div><b>Scope</b><small>Change your vision</small></div></div>
+  <nav>
+    <a href="{{ url_for('journal') }}" class="{{ 'on' if active=='journal' }}">Journal</a>
+    <a href="{{ url_for('levels') }}" class="{{ 'on' if active=='levels' }}">Levels</a>
+    <a href="{{ url_for('stage2') }}" class="{{ 'on' if active=='stage2' }}">Stage 2 / RS</a>
+    <a href="{{ url_for('logout') }}" class="out">Logout</a>
+  </nav>
+</header>
+<main>{% block body %}{% endblock %}</main>
+<footer>Educational use only. Not investment advice.</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>
