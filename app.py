@@ -102,13 +102,14 @@ def logout():
 
 
 # ---------------------------------------------------------------- data (GitHub / local)
-_mem = {"t": 0, "data": None}
+_mem = {"t": 0, "data": None, "src": "-", "err": ""}
 
 
 def get_data():
+    """GitHub (fresh) -> otherwise the newest of cached copy / local data.json. Reason is kept in _mem for /api/status."""
     if _mem["data"] and time.time() - _mem["t"] < 1800:
         return _mem["data"]
-    data = None
+    data, src, err = None, "", ""
     tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
     if tok and repo:
         try:
@@ -116,21 +117,39 @@ def get_data():
                              headers={"Authorization": f"Bearer {tok}",
                                       "Accept": "application/vnd.github.raw"}, timeout=30)
             if r.ok:
-                data = r.json()
+                data, src = r.json(), "GitHub (live)"
                 with open(CACHE_PATH, "w") as f:
                     json.dump(data, f)
-        except Exception:
-            data = None
+            else:
+                err = f"GitHub answered {r.status_code}: {r.text[:160]}"
+        except Exception as e:
+            err = f"GitHub fetch failed: {e}"
+    else:
+        err = "GITHUB_TOKEN or GITHUB_REPO is not set in the WSGI file"
     if data is None:
-        for p in (CACHE_PATH, LOCAL_DATA):
+        best = None
+        for p, name in ((CACHE_PATH, "saved copy"), (LOCAL_DATA, "data.json on this server")):
             if os.path.exists(p):
-                with open(p) as f:
-                    data = json.load(f)
-                break
+                try:
+                    with open(p) as f:
+                        d = json.load(f)
+                except Exception:
+                    continue
+                if best is None or str(d.get("updated", "")) > str(best[0].get("updated", "")):
+                    best = (d, name)
+        if best:
+            data, src = best
     if data is None:
-        data = {"updated": "-", "count": 0, "stocks": []}
-    _mem.update(t=time.time(), data=data)
+        data, src = {"updated": "-", "count": 0, "stocks": []}, "nothing found"
+    _mem.update(t=time.time() if not err else time.time() - 1680, data=data, src=src, err=err)   # on failure retry in ~2 min
     return data
+
+
+@app.route("/api/status")
+def api_status():
+    d = get_data()
+    return jsonify({"source": _mem["src"], "problem": _mem["err"] or None, "updated": d.get("updated"),
+                    "stocks": len(d.get("stocks", []))})
 
 
 @app.route("/api/stocks")
