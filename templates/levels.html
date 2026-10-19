@@ -12,7 +12,7 @@
   <div class="filters">
     <label class="fld">Search<input id="s" placeholder="symbol"></label>
     <label class="fld">Zone<select id="zone"><option value="">All</option><option>Above VHIGH</option><option>Near VHIGH (sell zone)</option><option>Inside range</option><option>Near VLOW (buy zone)</option><option>Below VLOW</option></select></label>
-    <label class="fld">Stage<select id="stg"><option value="">All</option><option value="2">Stage 2</option><option value="1">Stage 1</option><option value="3">Stage 3</option><option value="4">Stage 4</option></select></label>
+    <label class="fld">Stage<select id="stg"><option value="">All</option><option value="2">Stage 2</option><option value="1">Stage 1</option><option value="3">Stage 3</option><option value="4">Stage 4</option><option value="0">New listing</option></select></label>
     <label class="fld">Min avg volume<input id="mv" type="number" value="100000"></label>
   </div>
   <div class="mut" id="count" style="margin-bottom:6px"></div>
@@ -82,7 +82,7 @@ function detail(s){
     <small>${x.mag?MAGNET(20):x.name}</small><b>${f2(x.v)}</b><em>${(x.v/s.price-1)>=0?'+':''}${((x.v/s.price-1)*100).toFixed(1)}% from price</em></div>`).join('');
   box.innerHTML=`<div class="dh"><div><h2 class="sym">${s.symbol}</h2><span class="px">₹${f2(s.price)}</span>
     <span class="${s.chg>=0?'pos':'neg'}" style="margin-left:8px">${s.chg>=0?'+':''}${s.chg}%</span></div>
-    <div class="row"><span class="tag s${s.stage}">Stage ${s.stage}</span>${s.rs!=null?`<span class="rs">RS ${s.rs}</span>`:''}<span class="zone ${ZC[s.zone]||''}">${s.zone||''}</span></div></div>
+    <div class="row">${s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New listing</span>'}${s.rs!=null?`<span class="rs">RS ${s.rs}</span>`:''}<span class="zone ${ZC[s.zone]||''}">${s.zone||''}</span></div></div>
     <div class="dgrid"><div>${svg}</div><div class="lv">${chips}</div></div>`;
   box.querySelectorAll('[data-k]').forEach(el=>{
     el.addEventListener('mouseenter',()=>setHl(el.dataset.k,true));
@@ -107,7 +107,7 @@ function draw(){
     return `<tr class="clk" data-s="${x.symbol}"><td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td>
       <td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td><td>${f2(x.point)}</td><td>${f2(x.vhigh)}</td><td>${f2(x.vlow)}</td>
       <td><span class="rb"><i style="left:${p}%"></i></span></td><td class="l"><span class="zone ${ZC[x.zone]||''}">${x.zone}</span></td>
-      <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.rs??'-'}</td></tr>`}).join('')
+      <td>${x.stage?`<span class="tag s${x.stage}">S${x.stage}</span>`:'<span class="tag" title="New listing - not enough history for Stage/RS">NEW</span>'}</td><td>${x.rs??'-'}</td></tr>`}).join('')
     ||'<tr><td colspan="10" class="empty">No data yet. Run the daily job first.</td></tr>';
 }
 $('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) pick(tr.dataset.s)};

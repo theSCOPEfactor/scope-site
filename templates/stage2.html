@@ -10,12 +10,13 @@
       <span class="mut">Quick views</span>
       <button class="btn sm" data-p="fresh">Fresh Stage 2 · RS 80+</button>
       <button class="btn sm" data-p="leaders">Leaders · RS 90+</button>
+      <button class="btn sm" data-p="new">New listings (IPO)</button>
       <button class="btn sm" data-p="reset">Reset</button>
     </div>
   </div>
   <div class="filters">
     <label class="fld">Search<input id="s" placeholder="symbol"></label>
-    <div class="fld">Stage<div class="seg" id="stg"><button data-v="2" class="on">2</button><button data-v="">All</button><button data-v="1">1</button><button data-v="3">3</button><button data-v="4">4</button></div></div>
+    <div class="fld">Stage<div class="seg" id="stg"><button data-v="2" class="on">2</button><button data-v="">All</button><button data-v="1">1</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="0">New</button></div></div>
     <label class="fld">Min RS: <b id="rsv" style="color:var(--tx)">80</b><input id="rs" type="range" min="1" max="99" value="80"></label>
     <label class="fld">Max days in Stage 2: <b id="dv" style="color:var(--tx)">365</b><input id="dm" type="range" min="0" max="365" value="365"></label>
     <label class="fld">Min avg volume<input id="mv" type="number" value="100000"></label>
@@ -40,7 +41,7 @@ $('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k) sortBy(k)
 function apply(){
   const t=$('s').value.trim().toUpperCase(), r=+$('rs').value, d=+$('dm').value, v=+$('mv').value||0;
   $('rsv').textContent=r; $('dv').textContent=d;
-  VIEW=ALL.filter(x=>(!t||x.symbol.includes(t))&&(!STG||x.stage==STG)&&(x.rs??0)>=r&&(x.stage!=2||x.days_s2<=d)&&x.avg_vol>=v);
+  VIEW=ALL.filter(x=>(!t||x.symbol.includes(t))&&(!STG||x.stage==STG)&&((x.rs??0)>=r||STG==='0')&&(x.stage!=2||x.days_s2<=d)&&x.avg_vol>=v);
   VIEW.sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
   page=0; draw();
 }
@@ -52,7 +53,7 @@ function draw(){
   $('rows').innerHTML=VIEW.slice(page*PS,page*PS+PS).map(x=>`<tr class="clk" data-s="${x.symbol}">
     <td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td>
     <td><span class="rs ${x.rs>=80?'hi':x.rs<40?'lo':''}">${x.rs??'-'}</span></td>
-    <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.stage==2?x.days_s2:'-'}</td>
+    <td>${x.stage?`<span class="tag s${x.stage}">S${x.stage}</span>`:'<span class="tag" title="New listing - not enough history for Stage/RS">NEW</span>'}</td><td>${x.stage==2?x.days_s2:'-'}</td>
     <td class="${x.from_hi<-25?'neg':''}">${x.from_hi==null?'-':x.from_hi+'%'}</td><td>${f2(x.sma50)}</td><td>${f2(x.sma200)}</td>
     <td class="l mut">${x.zone||''}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches these filters.</td></tr>';
 }
@@ -63,6 +64,7 @@ function setStg(v){STG=v;[...$('stg').children].forEach(x=>x.classList.toggle('o
 document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{
   const p=b.dataset.p;
   if(p=='fresh'){setStg('2');$('rs').value=80;$('dm').value=10}
+  if(p=='new'){setStg('0');$('rs').value=1;$('dm').value=365;$('mv').value=0;sortK='listed_days';sortD=1}
   if(p=='leaders'){setStg('2');$('rs').value=90;$('dm').value=365}
   if(p=='reset'){setStg('2');$('rs').value=80;$('dm').value=365;$('s').value='';$('mv').value=100000}
   apply();
