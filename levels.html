@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>52-Week Levels</h1><p class="sub">Key price levels for every stock · data updated {{ updated }}</p></div></div>
+
+<div class="card">
+  <input id="q" list="syms" placeholder="Search a stock, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px">
+  <datalist id="syms"></datalist>
+  <div id="detail"><div class="hint">Pick a stock to see its price ladder. Hover a level to highlight it.</div></div>
+</div>
+
+<div class="card">
+  <div class="filters">
+    <label class="fld">Search<input id="s" placeholder="symbol"></label>
+    <label class="fld">Zone<select id="zone"><option value="">All</option><option>Above VHIGH</option><option>Near VHIGH (sell zone)</option><option>Inside range</option><option>Near VLOW (buy zone)</option><option>Below VLOW</option></select></label>
+    <label class="fld">Stage<select id="stg"><option value="">All</option><option value="2">Stage 2</option><option value="1">Stage 1</option><option value="3">Stage 3</option><option value="4">Stage 4</option></select></label>
+    <label class="fld">Min avg volume<input id="mv" type="number" value="100000"></label>
+  </div>
+  <div class="mut" id="count" style="margin-bottom:6px"></div>
+  <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="pager"><button class="btn sm" onclick="pg(-1)">‹ Prev</button><span id="pn"></span><button class="btn sm" onclick="pg(1)">Next ›</button></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+let ALL=[], VIEW=[], page=0, sortK='symbol', sortD=1; const PS=50;
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
+const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['point',MAGNET(17)],['vhigh','VHIGH'],['vlow','VLOW'],['pos','Range'],['zone','Zone','l'],['stage','Stage'],['rs','RS']];
+$('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
+$('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k) sortBy(k)};
+
+function levelsOf(s){
+  const F=s.fib||{}, R=s.vhigh-s.vlow;
+  const deep=m=>{const v=s.vlow-m*R; return v>0?v:null};      // levels below VLOW, measured in range-widths
+  return [
+    {k:'d1',name:'Deep buy reversal 1',v:deep(0.272),c:'#38bdf8'},
+    {k:'d2',name:'Deep buy reversal 2',v:deep(0.618),c:'#818cf8'},
+    {k:'t1',name:'Target 1',v:F.target1,c:'#a78bfa'},
+    {k:'hi',name:'VHIGH · Breakout',v:s.vhigh,c:'#fb7185'},
+    {k:'sr',name:'Sell reversal',v:F.sell_reversal,c:'#fb923c'},
+    {k:'mg',name:'',v:s.point,c:'#f5c04a',mag:true},
+    {k:'br',name:'Buy reversal',v:F.buy_reversal,c:'#34d399'},
+    {k:'lo',name:'VLOW · Break down',v:s.vlow,c:'#2dd4bf'}
+  ].filter(x=>x.v!=null);
+}
+
+function ladderSvg(s,L){
+  const vals=L.map(x=>x.v).concat([s.price]);
+  let mn=Math.min(...vals), mx=Math.max(...vals); const pad=(mx-mn)*.08||1; mn-=pad; mx+=pad;
+  const top=26, bot=400, Y=v=>top+(mx-v)/(mx-mn)*(bot-top);
+  L.forEach(x=>x.y=Y(x.v)); L.sort((a,b)=>a.y-b.y);
+  let prev=-1e9; L.forEach(x=>{x.ly=Math.max(x.y,prev+34); prev=x.ly});
+  const H=Math.max(bot+34,prev+30), py=Y(s.price), hi=L.find(x=>x.k=='hi'), lo=L.find(x=>x.k=='lo');
+  let g=`<svg class="ladder" viewBox="0 0 470 ${H}" role="img" aria-label="Price ladder">`;
+  if(hi&&lo) g+=`<rect x="78" y="${hi.y}" width="200" height="${Math.max(2,lo.y-hi.y)}" rx="6" fill="rgba(45,212,191,.07)" stroke="rgba(45,212,191,.2)"/>`;
+  g+=`<line x1="78" y1="${top-8}" x2="78" y2="${bot+10}" stroke="rgba(255,255,255,.2)"/>`;
+  L.forEach((x,i)=>{
+    const lab=x.mag?`<g transform="translate(314,${x.ly-11}) scale(1)">${MAGNET(22)}</g>`:`<text class="nm" x="314" y="${x.ly-4}">${x.name}</text>`;
+    g+=`<g class="lvl" data-k="${x.k}" style="--c:${x.c}">
+      <rect class="hit" x="0" y="${Math.min(x.y,x.ly)-14}" width="470" height="${Math.abs(x.ly-x.y)+30}"/>
+      <line class="ln" x1="78" y1="${x.y}" x2="278" y2="${x.y}" style="animation-delay:${i*70}ms"/>
+      <polyline class="ln" points="278,${x.y} 296,${x.ly} 308,${x.ly}" fill="none" style="animation-delay:${i*70}ms;stroke-width:1.2"/>
+      <g class="lt" style="animation-delay:${200+i*70}ms">${lab}<text class="vl" x="${x.mag?340:314}" y="${x.mag?x.ly+5:x.ly+13}">${f2(x.v)}</text></g></g>`;
+  });
+  g+=`<g class="pm"><line x1="78" y1="${py}" x2="278" y2="${py}" stroke="#fff" stroke-opacity=".5" stroke-dasharray="4 4"/>
+    <circle class="ring" cx="78" cy="${py}" r="7" fill="#fff" fill-opacity=".4"/><circle cx="78" cy="${py}" r="6" fill="#fff" stroke="#0a1226" stroke-width="2"/>
+    <text x="68" y="${py+4}" text-anchor="end" fill="#fff" font-size="12" font-weight="700">${f2(s.price)}</text></g></svg>`;
+  return g;
+}
+
+function setHl(k,on){document.querySelectorAll('#detail [data-k="'+k+'"]').forEach(el=>el.classList.toggle('hl',on))}
+
+function detail(s){
+  const box=$('detail');
+  if(!s){box.innerHTML='<div class="hint">Pick a stock to see its price ladder. Hover a level to highlight it.</div>';return}
+  if(s.point==null){box.innerHTML=`<div class="hint">${s.symbol}: levels not available yet.</div>`;return}
+  const L=levelsOf(s), svg=ladderSvg(s,L);
+  const chips=L.slice().sort((a,b)=>b.v-a.v).map(x=>`<div class="lvc" data-k="${x.k}" style="--c:${x.c}">
+    <small>${x.mag?MAGNET(20):x.name}</small><b>${f2(x.v)}</b><em>${(x.v/s.price-1)>=0?'+':''}${((x.v/s.price-1)*100).toFixed(1)}% from price</em></div>`).join('');
+  box.innerHTML=`<div class="dh"><div><h2 class="sym">${s.symbol}</h2><span class="px">₹${f2(s.price)}</span>
+    <span class="${s.chg>=0?'pos':'neg'}" style="margin-left:8px">${s.chg>=0?'+':''}${s.chg}%</span></div>
+    <div class="row"><span class="tag s${s.stage}">Stage ${s.stage}</span>${s.rs!=null?`<span class="rs">RS ${s.rs}</span>`:''}<span class="zone ${ZC[s.zone]||''}">${s.zone||''}</span></div></div>
+    <div class="dgrid"><div>${svg}</div><div class="lv">${chips}</div></div>`;
+  box.querySelectorAll('[data-k]').forEach(el=>{
+    el.addEventListener('mouseenter',()=>setHl(el.dataset.k,true));
+    el.addEventListener('mouseleave',()=>setHl(el.dataset.k,false));
+  });
+}
+function pick(sym){ $('q').value=sym; detail(ALL.find(x=>x.symbol==sym)); $('detail').scrollIntoView({behavior:'smooth',block:'center'}); }
+
+function apply(){
+  const t=$('s').value.trim().toUpperCase(), z=$('zone').value, st=$('stg').value, mv=+$('mv').value||0;
+  VIEW=ALL.filter(x=>x.point!=null&&(!t||x.symbol.includes(t))&&(!z||x.zone==z)&&(!st||x.stage==st)&&x.avg_vol>=mv);
+  VIEW.sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
+  page=0; draw();
+}
+function sortBy(k){ sortD=sortK==k?-sortD:1; sortK=k; apply(); }
+function pg(d){ const m=Math.max(0,Math.ceil(VIEW.length/PS)-1); page=Math.min(m,Math.max(0,page+d)); draw(); }
+function draw(){
+  $('count').textContent=VIEW.length+' stocks';
+  $('pn').textContent=(page+1)+' / '+Math.max(1,Math.ceil(VIEW.length/PS));
+  $('rows').innerHTML=VIEW.slice(page*PS,page*PS+PS).map(x=>{
+    const p=Math.max(-4,Math.min(104,x.pos*100));
+    return `<tr class="clk" data-s="${x.symbol}"><td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td>
+      <td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td><td>${f2(x.point)}</td><td>${f2(x.vhigh)}</td><td>${f2(x.vlow)}</td>
+      <td><span class="rb"><i style="left:${p}%"></i></span></td><td class="l"><span class="zone ${ZC[x.zone]||''}">${x.zone}</span></td>
+      <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.rs??'-'}</td></tr>`}).join('')
+    ||'<tr><td colspan="10" class="empty">No data yet. Run the daily job first.</td></tr>';
+}
+$('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) pick(tr.dataset.s)};
+$('q').oninput=()=>detail(ALL.find(x=>x.symbol==$('q').value.trim().toUpperCase()));
+['s','zone','stg','mv'].forEach(i=>$(i).oninput=apply);
+fetch('/api/stocks').then(r=>r.json()).then(d=>{
+  ALL=d.stocks; ALL.forEach(x=>x.pos=x.vhigh>x.vlow?(x.price-x.vlow)/(x.vhigh-x.vlow):.5);
+  $('syms').innerHTML=ALL.map(x=>`<option value="${x.symbol}">`).join(''); apply();
+  const sp=new URLSearchParams(location.search).get('s'); if(sp) pick(sp.toUpperCase());
+});
+</script>
+{% endraw %}
+{% endblock %}
