@@ -38,7 +38,16 @@ def load_universe():
     for o in out:
         if o["symbol"] not in seen:
             seen.add(o["symbol"]); uniq.append(o)
-    return uniq
+    # NSE indices (Nifty 50, Nifty Bank, ...)
+    idx, seen_i = [], set()
+    for r in rows:
+        if r.get("exch_seg") != "NSE":
+            continue
+        nm = str(r.get("symbol", ""))
+        if (r.get("instrumenttype") == "AMXIDX" or str(r.get("token", "")).startswith("99926")) \
+                and "VIX" not in nm.upper() and nm not in seen_i:
+            seen_i.add(nm); idx.append({"symbol": nm, "token": r["token"]})
+    return uniq, idx
 
 
 def login():
@@ -50,10 +59,10 @@ def login():
     return api
 
 
-def fetch_hourly(api, token, retries=3):
+def fetch_hourly(api, token, retries=3, interval="ONE_HOUR", days=LOOKBACK_DAYS):
     now = dt.datetime.now()
-    frm = now - dt.timedelta(days=LOOKBACK_DAYS)
-    params = {"exchange": "NSE", "symboltoken": token, "interval": "ONE_HOUR",
+    frm = now - dt.timedelta(days=days)
+    params = {"exchange": "NSE", "symboltoken": token, "interval": interval,
               "fromdate": frm.strftime("%Y-%m-%d 09:15"), "todate": now.strftime("%Y-%m-%d %H:%M")}
     for i in range(retries):
         try:
@@ -69,14 +78,18 @@ def fetch_hourly(api, token, retries=3):
     return None
 
 
-def volume_profile(h1):
-    """1h candles thi 52W profile. Dar candle nu volume tena high-low range ma vehchay che."""
+def volume_profile(h1, bins=BINS):
+    """candles thi profile. Dar candle nu volume tena high-low range ma vehchay che.
+    Index ma volume hotu nathi -> dar candle ne barabar vajan (time based)."""
+    BINS = bins
     lo, hi = h1["l"].min(), h1["h"].max()
     if hi <= lo:
         return None
     edges = np.linspace(lo, hi, BINS + 1)
     vol = np.zeros(BINS)
-    L = h1["l"].values; H = h1["h"].values; V = h1["v"].values
+    L = h1["l"].values; H = h1["h"].values; V = h1["v"].values.astype(float)
+    if V.sum() <= 0:
+        V = np.ones(len(V))
     for l, h, v in zip(L, H, V):
         if v <= 0:
             continue
@@ -147,13 +160,47 @@ def ret(c, days):
     return c.iloc[-1] / c.iloc[-1 - days] - 1
 
 
+def index_row(api, u):
+    """Ek index: 52W levels (1h) + aaj na divas na levels (5 min)."""
+    h1 = fetch_hourly(api, u["token"]); time.sleep(SLEEP)
+    if h1 is None or len(h1) < 5:
+        return None
+    daily = to_daily(h1)
+    c = daily["c"]
+    price = float(c.iloc[-1]); prev = float(c.iloc[-2]) if len(c) > 1 else price
+    row = {"symbol": u["symbol"], "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2)}
+    prof = volume_profile(h1)
+    if prof:
+        row["w52"] = {k: round(v, 2) for k, v in prof.items()}
+        row["w52"]["hi"] = round(float(h1["h"].max()), 2); row["w52"]["lo"] = round(float(h1["l"].min()), 2)
+    m5 = fetch_hourly(api, u["token"], interval="FIVE_MINUTE", days=4); time.sleep(SLEEP)
+    if m5 is not None and len(m5) >= 5:
+        last = m5["ts"].dt.date.max()
+        d = m5[m5["ts"].dt.date == last]
+        dp = volume_profile(d, bins=40) if len(d) >= 5 else None
+        if dp:
+            row["day"] = {k: round(v, 2) for k, v in dp.items()}
+            row["day"]["hi"] = round(float(d["h"].max()), 2); row["day"]["lo"] = round(float(d["l"].min()), 2)
+            row["day"]["date"] = str(last)
+    return row
+
+
 def main():
-    uni = load_universe()
+    uni, idx = load_universe()
     mx = int(os.environ.get("MAX_STOCKS", "0"))
     if mx:
         uni = uni[:mx]
     print("Universe:", len(uni))
     api = login()
+    indices = []
+    for u in idx[:60]:
+        try:
+            r = index_row(api, u)
+            if r:
+                indices.append(r)
+        except Exception as e:
+            print("index fail", u["symbol"], e)
+    print("Indices:", len(indices))
     rows, fails = [], 0
     for i, u in enumerate(uni, 1):
         h1 = fetch_hourly(api, u["token"])
@@ -219,7 +266,7 @@ def main():
         return o
 
     ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)      # show India time
-    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "stocks": rows}
+    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "stocks": rows}
     with open("data.json", "w") as f:
         json.dump(clean(out), f, separators=(",", ":"), allow_nan=False)
     print("Saved data.json:", len(rows), "stocks, failed:", fails)
