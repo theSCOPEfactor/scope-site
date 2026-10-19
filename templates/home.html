@@ -1,60 +1,70 @@
 {% extends "base.html" %}
 {% block body %}
-<section class="hero">
-  <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="Scope logo">
-  <b class="wordmark">SCOPE</b>
-  <span class="typer" data-text="CHANGE YOUR VISION">CHANGE YOUR VISION</span>
-</section>
+<div class="pagehead"><div><h1>Market</h1><p class="sub">Key levels of the indices and stocks near them · data updated {{ updated }}</p></div></div>
 
-<div class="tiles">
-  <a class="tile" href="{{ url_for('portfolio') }}"><h3>Portfolio</h3><p>Stocks you hold, with live P&amp;L, Stage and RS</p>
-    <div class="big" id="h_pf">-</div><p id="h_pfp">&nbsp;</p></a>
-  <a class="tile" href="{{ url_for('journal') }}"><h3>Trading Journal</h3><p>Trades, P&amp;L and your target plan</p>
-    <div class="big" id="h_real">-</div><p id="h_open">&nbsp;</p></a>
-  <a class="tile" href="{{ url_for('levels') }}"><h3>Levels</h3><p>VHIGH, VLOW and key levels for every stock</p>
-    <div class="big" id="h_n">-</div><p id="h_upd">&nbsp;</p></a>
-  <a class="tile" href="{{ url_for('stage2') }}"><h3>Stage 2 / RS</h3><p>Advancing stocks and relative strength</p>
-    <div class="big" id="h_s2">-</div><p id="h_s2p">&nbsp;</p></a>
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <h2 style="margin:0">Indices</h2>
+    <div class="seg2" id="mode"><button data-m="day" class="on">Today</button><button data-m="w52">52 Week</button></div>
+  </div>
+  <div class="wrap"><table><thead><tr><th class="l">Index</th><th>Price</th><th>Chg %</th><th>VLOW</th><th id="mgh"></th><th>VHIGH</th><th>Range</th></tr></thead>
+  <tbody id="idx"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table></div>
+  <p class="note" id="idxnote">Today = levels of today’s session. Index levels are based on time spent at each price, because indices have no traded volume.</p>
 </div>
 
-<div class="card" style="margin-top:16px">
-  <h2>Strongest Stage 2 stocks <span class="mut" style="font-weight:400;font-size:12px">· RS ranking</span></h2>
-  <div class="toprs" id="toprs"><span class="mut">Loading…</span></div>
-</div>
-
-<div class="card" id="goalcard" style="display:none">
-  <h2>Goal progress</h2>
-  <div class="row" style="justify-content:space-between"><span id="g_txt" class="mut"></span><b id="g_pct"></b></div>
-  <div class="bar"><i id="g_bar" style="width:0%"></i></div>
-  <a href="{{ url_for('journal') }}?tab=plan" class="btn sm">Open plan sheet →</a>
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px">
+    <h2 style="margin:0">Stocks near their 52-week levels</h2>
+    <div class="row">
+      <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Within
+        <select id="pct"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select></label>
+      <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Min avg volume<input id="mv" type="number" value="100000" style="width:110px"></label>
+      <label class="fld chk"><input id="s2" type="checkbox"> Stage 2 only</label>
+    </div>
+  </div>
+  <div class="cols3">
+    <div><h3><span class="dot" style="background:var(--teal)"></span>Near VLOW <span class="mut" id="c_lo"></span></h3><div class="nl" id="n_lo"></div></div>
+    <div><h3 id="h_mg"></h3><div class="nl" id="n_mg"></div></div>
+    <div><h3><span class="dot" style="background:#fb7185"></span>Near VHIGH <span class="mut" id="c_hi"></span></h3><div class="nl" id="n_hi"></div></div>
+  </div>
+  <p class="note">Closest first. Click a stock to open its price ladder.</p>
 </div>
 {% endblock %}
+
 {% block scripts %}
+{% raw %}
 <script>
-const inr=n=>(n<0?'-':'')+'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
-fetch('/api/stocks').then(r=>r.json()).then(d=>{
-  const S=d.stocks||[], s2=S.filter(x=>x.stage==2);
-  animateNum(h_n,S.length); h_upd.textContent='Updated '+d.updated;
-  animateNum(h_s2,s2.length); h_s2p.textContent=S.length?Math.round(s2.length/S.length*100)+'% of scanned stocks':'';
-  const top=s2.filter(x=>x.rs).sort((a,b)=>b.rs-a.rs).slice(0,14);
-  toprs.innerHTML=top.length?top.map(x=>`<a class="chip" href="/levels?s=${x.symbol}">${x.symbol} <b class="pos">${x.rs}</b></a>`).join(''):'<span class="mut">Appears once data is loaded.</span>';
-});
-fetch('/api/holdings').then(r=>r.json()).then(d=>{
-  const H=d.holdings||[]; let inv=0,val=0; H.forEach(h=>{inv+=h.qty*h.avg_price; val+=h.qty*(h.ltp!=null?h.ltp:h.avg_price)});
-  h_pf.textContent=H.length?(val-inv>=0?'+':'-')+'₹'+Math.abs(Math.round(val-inv)).toLocaleString('en-IN'):'0';
-  h_pf.className='big '+(val-inv>=0?'pos':'neg'); h_pfp.textContent=H.length?H.length+' holdings · '+((val/inv-1)*100).toFixed(1)+'%':'Add your first stock';
-});
-fetch('/api/journal').then(r=>r.json()).then(r=>{
-  const s=r.stats; h_real.className='big '+(s.realized>0?'pos':s.realized<0?'neg':'');
-  animateNum(h_real,s.realized,v=>inr(v)); h_open.textContent='This month realized · '+s.open+' open positions';
-});
-fetch('/api/plan').then(r=>r.json()).then(r=>{
-  const p=r.plan; if(!p||!r.capital) return;
-  const B=ScopePlan.build(p,r.capital); if(!B) return;
-  const cap=r.capital, target=B.T;
-  const prof=r.actual.realized+r.actual.unrealized, pct=Math.max(0,Math.min(100,prof/target*100));
-  goalcard.style.display='block'; g_txt.textContent=inr(prof)+' of '+inr(target)+' target';
-  g_pct.textContent=Math.round(prof/target*100)+'%'; setTimeout(()=>g_bar.style.width=pct+'%',100);
-});
+const $=id=>document.getElementById(id);
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+let D={stocks:[],indices:[]}, mode='day';
+$('mgh').innerHTML=MAGNET(18); $('h_mg').innerHTML=MAGNET(18)+' <span style="vertical-align:4px;margin-left:4px">Near the magnet</span> <span class="mut" id="c_mg"></span>';
+
+function drawIdx(){
+  $('idx').innerHTML=D.indices.map(x=>{
+    const l=x[mode];
+    if(!l) return `<tr><td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td><td colspan="4" class="mut">no data</td></tr>`;
+    const p=l.vhigh>l.vlow?Math.max(-4,Math.min(104,(x.price-l.vlow)/(l.vhigh-l.vlow)*100)):50;
+    return `<tr><td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg>=0?'+':''}${x.chg}</td>
+      <td>${f2(l.vlow)}</td><td>${f2(l.point)}</td><td>${f2(l.vhigh)}</td><td><span class="rb"><i style="left:${p}%"></i></span></td></tr>`}).join('')
+    ||'<tr><td colspan="7" class="empty">Index levels appear after the next daily update.</td></tr>';
+  $('idxnote').textContent=mode=='day'?'Today = levels of today’s session. Index levels are based on time spent at each price, because indices have no traded volume.':'52 Week = levels built from the last year of trading.';
+}
+$('mode').onclick=e=>{const b=e.target.closest('button'); if(!b) return; mode=b.dataset.m;
+  [...$('mode').children].forEach(x=>x.classList.toggle('on',x===b)); drawIdx()};
+
+function near(){
+  const t=+$('pct').value/100, mv=+$('mv').value||0, s2=$('s2').checked;
+  const S=D.stocks.filter(x=>x.point!=null&&x.avg_vol>=mv&&(!s2||x.stage==2));
+  const list=(key,id,cid)=>{
+    const L=S.map(x=>({x,d:Math.abs(x.price/x[key]-1)})).filter(r=>r.d<=t).sort((a,b)=>a.d-b.d);
+    $(cid).textContent='('+L.length+')';
+    $(id).innerHTML=L.slice(0,15).map(r=>`<a href="/levels?s=${r.x.symbol}"><b>${r.x.symbol}</b><span>${f2(r.x[key])} <em>${r.x.price>=r.x[key]?'+':'-'}${(r.d*100).toFixed(1)}%</em></span></a>`).join('')
+      ||'<span class="mut">None right now</span>';
+  };
+  list('vlow','n_lo','c_lo'); list('point','n_mg','c_mg'); list('vhigh','n_hi','c_hi');
+}
+['pct','mv','s2'].forEach(i=>$(i).oninput=near);
+fetch('/api/stocks').then(r=>r.json()).then(d=>{D.stocks=d.stocks||[]; D.indices=d.indices||[]; drawIdx(); near()});
 </script>
+{% endraw %}
 {% endblock %}
