@@ -51,7 +51,9 @@ def load_universe():
 
 
 def login():
-    api = SmartConnect(api_key=os.environ["ANGEL_API_KEY"])
+    # timeout=30 -> Angel server jawab na ape to kayam latki na rahe
+    # (jo "unexpected keyword argument timeout" error aave to ", timeout=30" kadhi nakho)
+    api = SmartConnect(api_key=os.environ["ANGEL_API_KEY"], timeout=30)
     totp = pyotp.TOTP(os.environ["ANGEL_TOTP_SECRET"]).now()
     res = api.generateSession(os.environ["ANGEL_CLIENT_CODE"], os.environ["ANGEL_PASSWORD"], totp)
     if not res.get("status"):
@@ -59,7 +61,7 @@ def login():
     return api
 
 
-def fetch_hourly(api, token, retries=3, interval="ONE_HOUR", days=LOOKBACK_DAYS):
+def fetch_hourly(api, token, retries=4, interval="ONE_HOUR", days=LOOKBACK_DAYS):
     now = dt.datetime.now()
     frm = now - dt.timedelta(days=days)
     params = {"exchange": "NSE", "symboltoken": token, "interval": interval,
@@ -67,12 +69,18 @@ def fetch_hourly(api, token, retries=3, interval="ONE_HOUR", days=LOOKBACK_DAYS)
     for i in range(retries):
         try:
             res = api.getCandleData(params)
-            data = res.get("data") if isinstance(res, dict) else None
-            if data:
-                df = pd.DataFrame(data, columns=["ts", "o", "h", "l", "c", "v"])
-                df["ts"] = pd.to_datetime(df["ts"], utc=False).dt.tz_localize(None)
-                return df
-            return None
+            if isinstance(res, dict):
+                data = res.get("data")
+                if data:
+                    df = pd.DataFrame(data, columns=["ts", "o", "h", "l", "c", "v"])
+                    df["ts"] = pd.to_datetime(df["ts"], utc=False).dt.tz_localize(None)
+                    return df
+                msg = str(res.get("message", "")).lower()
+                if res.get("errorcode") == "AB1010" or "rate" in msg or "access denied" in msg:
+                    time.sleep(3 * (i + 1))      # rate limit -> thodi vaar ruki ne fari try
+                    continue
+                return None                      # kharekhar data nathi
+            time.sleep(2 * (i + 1))
         except Exception as e:
             time.sleep(2 * (i + 1))
     return None
@@ -201,6 +209,7 @@ def main():
         except Exception as e:
             print("index fail", u["symbol"], e)
     print("Indices:", len(indices))
+    t0 = time.time()
     rows, fails = [], 0
     for i, u in enumerate(uni, 1):
         h1 = fetch_hourly(api, u["token"])
@@ -247,7 +256,7 @@ def main():
                 row["zone"] = "Inside range"
         rows.append(row)
         if i % 100 == 0:
-            print(f"{i}/{len(uni)} done, ok={len(rows)} fail={fails}", flush=True)
+            print(f"{i}/{len(uni)} done, ok={len(rows)} fail={fails}, {int((time.time() - t0) / 60)} min", flush=True)
 
     # RS percentile (1-99)
     s = pd.Series({r["symbol"]: r["rs_raw"] for r in rows if r["rs_raw"] is not None})
