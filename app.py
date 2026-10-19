@@ -173,9 +173,83 @@ def api_status():
                     "stocks": len(d.get("stocks", []))})
 
 
+_dmem = {"t": 0, "data": None}
+DETAILS_CACHE = os.path.join(BASE, "details_cache.json")
+LOCAL_DETAILS = os.path.join(BASE, "details.json")
+
+
+def get_details():
+    """details.json (fundamentals, news, index constituents) - GitHub, else saved copy. Never raises."""
+    if _dmem["data"] is not None and time.time() - _dmem["t"] < 3600:
+        return _dmem["data"]
+    data = None
+    tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
+    if tok and repo:
+        try:
+            r = requests.get(f"https://api.github.com/repos/{repo}/contents/details.json",
+                             headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github.raw"}, timeout=30)
+            if r.ok:
+                data = _clean(json.loads(r.text))
+                with open(DETAILS_CACHE, "w") as f:
+                    json.dump(data, f)
+        except Exception:
+            data = None
+    if data is None:
+        for p in (DETAILS_CACHE, LOCAL_DETAILS):
+            if os.path.exists(p):
+                try:
+                    with open(p) as f:
+                        d = _clean(json.load(f))
+                    if data is None or str(d.get("updated", "")) > str(data.get("updated", "")):
+                        data = d
+                except Exception:
+                    pass
+    if data is None:
+        data = {"updated": None, "indices": {}, "stocks": {}}
+    _dmem.update(t=time.time() if data["updated"] else time.time() - 3300, data=data)
+    return data
+
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", str(s).lower().replace("&", "and"))
+
+
 @app.route("/api/stocks")
 def api_stocks():
-    return jsonify(get_data())
+    d = get_data()
+    det = get_details().get("stocks", {})
+    for s in d.get("stocks", []):                      # industry comes from details.json (used by the Sectors page)
+        if not s.get("industry") and det.get(s["symbol"], {}).get("industry"):
+            s["industry"] = det[s["symbol"]]["industry"]
+    return jsonify(d)
+
+
+@app.route("/api/detail/<sym>")
+def api_detail(sym):
+    sym = _norm_sym(sym)
+    d, det = get_data(), get_details()
+    stock = next((s for s in d["stocks"] if s["symbol"] == sym), None)
+    member = [v["label"] for k, v in {x["label"]: x for x in det.get("indices", {}).values()}.items() if sym in v["symbols"]]
+    return jsonify({"symbol": sym, "stock": stock, "detail": det.get("stocks", {}).get(sym),
+                    "member_of": member, "details_updated": det.get("updated"), "updated": d.get("updated")})
+
+
+@app.route("/api/index")
+def api_index():
+    name = request.args.get("name", "")
+    d, det = get_data(), get_details()
+    row = next((i for i in d.get("indices", []) if i["symbol"] == name), None)
+    ent = det.get("indices", {}).get(_norm(name))
+    members, missing = [], 0
+    if ent:
+        by = {s["symbol"]: s for s in d["stocks"]}
+        for sym in ent["symbols"]:
+            if sym in by:
+                s = dict(by[sym]); s["industry"] = det.get("stocks", {}).get(sym, {}).get("industry"); members.append(s)
+            else:
+                missing += 1
+    return jsonify({"name": name, "index": row, "found": bool(ent), "total": len(ent["symbols"]) if ent else 0,
+                    "missing": missing, "members": members, "updated": d.get("updated")})
 
 
 # ---------------------------------------------------------------- pages
@@ -197,6 +271,22 @@ def stage2():
 @app.route("/journal")
 def journal():
     return render_template("journal.html", active="journal")
+
+
+@app.route("/stock")
+@app.route("/stock/<sym>")
+def stock_page(sym=""):
+    return render_template("stock.html", active="stock", sym=_norm_sym(sym), updated=get_data()["updated"])
+
+
+@app.route("/index/<path:name>")
+def index_page(name):
+    return render_template("index.html", active="home", name=name, updated=get_data()["updated"])
+
+
+@app.route("/sectors")
+def sectors():
+    return render_template("sectors.html", active="sectors", updated=get_data()["updated"])
 
 
 @app.route("/portfolio")
