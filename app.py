@@ -162,10 +162,6 @@ def get_data():
             data, src = best
     if data is None:
         data, src = {"updated": "-", "count": 0, "stocks": []}, "nothing found"
-    _ZN = {"Near VHIGH (sell zone)": "Near VHIGH", "Near VLOW (buy zone)": "Near VLOW"}    # neutral wording, no buy/sell labels
-    for st in data.get("stocks", []):
-        if st.get("zone") in _ZN:
-            st["zone"] = _ZN[st["zone"]]
     _mem.update(t=time.time() if not err else time.time() - 1680, data=data, src=src, err=err)   # on failure retry in ~2 min
     return data
 
