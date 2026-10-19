@@ -116,8 +116,8 @@ def to_daily(h1):
 def stage_series(daily):
     c = daily["c"]
     s50, s150, s200 = c.rolling(50).mean(), c.rolling(150).mean(), c.rolling(200).mean()
-    hi52 = daily["h"].rolling(250, min_periods=120).max()
-    lo52 = daily["l"].rolling(250, min_periods=120).min()
+    hi52 = daily["h"].rolling(250, min_periods=1).max()
+    lo52 = daily["l"].rolling(250, min_periods=1).min()
     rising200 = s200 > s200.shift(20)
     s2 = ((c > s150) & (c > s200) & (s150 > s200) & rising200 &
           (s50 > s150) & (c > s50) & (c >= 0.75 * hi52) & (c >= 1.30 * lo52))
@@ -158,11 +158,11 @@ def main():
     for i, u in enumerate(uni, 1):
         h1 = fetch_hourly(api, u["token"])
         time.sleep(SLEEP)
-        if h1 is None or len(h1) < 300:
+        if h1 is None or len(h1) < 5:      # navi IPO pan chalse (ochha candles)
             fails += 1
             continue
         daily = to_daily(h1)
-        if len(daily) < 60:
+        if len(daily) < 1:
             continue
         prof = volume_profile(h1)
         stage, s50, s150, s200, hi52, lo52 = stage_series(daily)
@@ -178,9 +178,12 @@ def main():
             "sma200": None if np.isnan(s200.iloc[-1]) else round(float(s200.iloc[-1]), 2),
             "hi52": round(float(hi52.iloc[-1]), 2), "lo52": round(float(lo52.iloc[-1]), 2),
             "from_hi": round((price / float(hi52.iloc[-1]) - 1) * 100, 1),
+            "listed_days": int(len(daily)),
             "stage": int(stage.iloc[-1]), "days_s2": days_in_stage2(stage),
             "rs_raw": None if np.isnan(rs_raw) else float(rs_raw),
             "avg_vol": int(daily["v"].tail(20).mean()),
+            "new": bool(len(daily) < 200),      # navi listing: Stage/RS mate pura divas nathi
+            "bars": int(len(daily)),
         }
         if prof:
             row.update({k: round(v, 2) for k, v in prof.items()})
