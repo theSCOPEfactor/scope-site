@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16244a"/><stop offset="1" stop-color="#060b1c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#60a5fa"/><stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe9a8"/><stop offset=".6" stop-color="#f5b942"/><stop offset="1" stop-color="#c98a1a"/>
+    </linearGradient>
+    <radialGradient id="iris" cx=".42" cy=".38" r=".8">
+      <stop offset="0" stop-color="#7cc0ff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f5c"/>
+    </radialGradient>
+    <clipPath id="irisClip"><circle cx="32" cy="32" r="12.5"/></clipPath>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <style>
+    .ring{transform-origin:32px 32px;animation:spin 16s linear infinite}
+    .ring2{transform-origin:32px 32px;animation:spin 24s linear infinite reverse}
+    .bar{animation:breathe 3.2s ease-in-out infinite;transform-origin:19.5px 32px}
+    .bar:nth-child(2){animation-delay:.3s}.bar:nth-child(3){animation-delay:.6s}.bar:nth-child(5){animation-delay:.9s}.bar:nth-child(6){animation-delay:1.2s}
+    .halo{animation:pulse 3.2s ease-in-out infinite;transform-origin:32px 32px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes breathe{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.12)}}
+    @keyframes pulse{0%,100%{opacity:.25}50%{opacity:.7}}
+  </style>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)" stroke="url(#rim)" stroke-width="1.6"/>
+  <ellipse class="halo" cx="32" cy="32" rx="26" ry="14" fill="none" stroke="#60a5fa" stroke-width=".6"/>
+  <path d="M5 32 Q32 8 59 32 Q32 56 5 32 Z" fill="#081027" stroke="url(#rim)" stroke-width="1.5"/>
+  <circle cx="32" cy="32" r="13" fill="url(#iris)"/>
+  <g clip-path="url(#irisClip)">
+    <g>
+      <rect class="bar" x="19.5" y="22.6" width="8"  height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
+      <rect class="bar" x="19.5" y="25.6" width="12" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
+      <rect class="bar" x="19.5" y="28.6" width="17" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".8"/>
+      <rect class="bar" x="19.5" y="31.4" width="24" height="3.0" rx="1.5" fill="url(#gold)" filter="url(#glow)"/>
+      <rect class="bar" x="19.5" y="35.0" width="18" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".8"/>
+      <rect class="bar" x="19.5" y="38.0" width="12" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
+      <rect class="bar" x="19.5" y="41.0" width="7"  height="2.2" rx="1.1" fill="#bfe0ff" opacity=".7"/>
+    </g>
+  </g>
+  <circle class="ring" cx="32" cy="32" r="15.4" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7" stroke-dasharray="2.2 2.6"/>
+  <g class="ring2" stroke="#f5b942" stroke-width="1.2" stroke-linecap="round">
+    <line x1="32" y1="14.2" x2="32" y2="17.4"/><line x1="32" y1="46.6" x2="32" y2="49.8"/>
+    <line x1="14.2" y1="32" x2="17.4" y2="32"/><line x1="46.6" y1="32" x2="49.8" y2="32"/>
+  </g>
+  <circle cx="37.4" cy="26.6" r="2" fill="#fff" opacity=".85"/>
+  <circle cx="35" cy="29" r=".8" fill="#fff" opacity=".6"/>
+</svg>

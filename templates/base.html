@@ -3,21 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#050914">
 <title>Scope · Change your vision</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Montserrat:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ ver }}">
+<script src="{{ url_for('static', filename='app.js') }}?v={{ ver }}"></script>
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
+<div class="bg"><i></i><i></i><i></i></div>
+{% block header %}
 <header class="top">
-  <div class="brand"><span class="logo">◉</span><div><b>Scope</b><small>Change your vision</small></div></div>
+  <a class="brand" href="{{ url_for('home') }}" aria-label="Scope - home">
+    <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="">
+    <span class="bt"><b class="wordmark">SCOPE</b><span class="typer" data-text="CHANGE YOUR VISION">CHANGE YOUR VISION</span></span>
+  </a>
   <nav>
+    <a href="{{ url_for('home') }}" class="{{ 'on' if active=='home' }}">Home</a>
     <a href="{{ url_for('journal') }}" class="{{ 'on' if active=='journal' }}">Journal</a>
     <a href="{{ url_for('levels') }}" class="{{ 'on' if active=='levels' }}">Levels</a>
     <a href="{{ url_for('stage2') }}" class="{{ 'on' if active=='stage2' }}">Stage 2 / RS</a>
-    <a href="{{ url_for('logout') }}" class="out">Logout</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
   </nav>
 </header>
+{% endblock %}
 <main>{% block body %}{% endblock %}</main>
-<footer>Educational use only. Not investment advice.</footer>
+{% include "_disclaimer.html" %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -23,6 +23,16 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-me-please")
 PASSWORD = os.environ.get("SCOPE_PASSWORD", "")
 
 
+@app.context_processor
+def inject_ver():
+    """cache-busting number for static files (changes whenever a static file changes)"""
+    try:
+        d = os.path.join(BASE, "static")
+        return {"ver": max(int(os.path.getmtime(os.path.join(d, f))) for f in os.listdir(d))}
+    except Exception:
+        return {"ver": 1}
+
+
 # ---------------------------------------------------------------- DB
 def db():
     if "db" not in g:
@@ -80,8 +90,8 @@ def login():
         if request.form.get("password") == PASSWORD:
             session["ok"] = True
             session.permanent = True
-            return redirect(url_for("journal"))
-        err = "Password khotu che"
+            return redirect(url_for("home"))
+        err = "Wrong password"
     return render_template("login.html", err=err)
 
 
@@ -131,7 +141,7 @@ def api_stocks():
 # ---------------------------------------------------------------- pages
 @app.route("/")
 def home():
-    return redirect(url_for("journal"))
+    return render_template("home.html", active="home")
 
 
 @app.route("/levels")
@@ -253,6 +263,55 @@ def api_trade_edit(tid):
              d.get("exit_date") or None, d.get("note", ""), tid))
     db().commit()
     return jsonify(ok=True)
+
+
+@app.route("/api/plan", methods=["GET", "POST"])
+def api_plan():
+    """Goal plan (target earning / time / % benefit). Sheet browser ma banay che."""
+    con = db()
+    if request.method == "POST":
+        con.execute("INSERT OR REPLACE INTO settings VALUES('plan',?)", (json.dumps(request.get_json(force=True)),))
+        con.commit()
+        return jsonify(ok=True)
+    row = con.execute("SELECT v FROM settings WHERE k='plan'").fetchone()
+    plan = json.loads(row["v"]) if row else None
+    start = (plan or {}).get("start") or "0000-01-01"
+    prices = {s["symbol"]: s["price"] for s in get_data()["stocks"]}
+    realized = unreal = 0.0
+    wins, losses = [], []
+    for r in con.execute("SELECT * FROM trades").fetchall():
+        t = dict(r)
+        pnl, pct, _ = pnl_of(t, prices.get(t["symbol"]))
+        if t["exit_price"] is not None:
+            (wins if pnl > 0 else losses).append(pct)      # all-time stats
+            if t["exit_date"] and t["exit_date"] >= start:
+                realized += pnl
+        else:
+            unreal += pnl
+    n = len(wins) + len(losses)
+    actual = {
+        "realized": round(realized, 2), "unrealized": round(unreal, 2), "n_closed": n,
+        "win_rate": round(len(wins) / n * 100, 1) if n else None,
+        "avg_win_pct": round(sum(wins) / len(wins), 2) if wins else None,
+        "avg_loss_pct": round(sum(losses) / len(losses), 2) if losses else None,
+    }
+    return jsonify(plan=plan, capital=get_capital(), actual=actual)
+
+
+@app.route("/api/pnl")
+def api_pnl():
+    """closed trades (exit date + P&L) and open unrealized P&L: feeds the plan sheet's Actual column"""
+    prices = {s["symbol"]: s["price"] for s in get_data()["stocks"]}
+    closed, unreal = [], 0.0
+    for r in db().execute("SELECT * FROM trades").fetchall():
+        t = dict(r)
+        pnl, _, _ = pnl_of(t, prices.get(t["symbol"]))
+        if t["exit_price"] is not None:
+            if t["exit_date"]:
+                closed.append({"date": t["exit_date"], "pnl": round(pnl, 2), "symbol": t["symbol"]})
+        else:
+            unreal += pnl
+    return jsonify({"closed": closed, "unrealized": round(unreal, 2)})
 
 
 @app.route("/api/capital", methods=["POST"])

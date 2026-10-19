@@ -1,10 +1,15 @@
-<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scope</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
-<body class="center">
+{% extends "base.html" %}
+{% block bodyclass %}loginpage{% endblock %}
+{% block header %}{% endblock %}
+{% block body %}
 <form method="post" class="card login">
-  <div class="brand big"><span class="logo">◉</span><div><b>Scope</b><small>Change your vision</small></div></div>
+  <div class="hero">
+    <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="Scope logo">
+    <b class="wordmark">SCOPE</b>
+    <span class="typer" data-text="CHANGE YOUR VISION">CHANGE YOUR VISION</span>
+  </div>
   <input type="password" name="password" placeholder="Password" autofocus>
-  {% if err %}<p class="neg">{{ err }}</p>{% endif %}
-  <button class="btn primary" type="submit">Login</button>
-</form></body></html>
+  {% if err %}<p class="neg" style="margin:0">{{ err }}</p>{% endif %}
+  <button class="btn primary" type="submit" style="justify-content:center">Enter</button>
+</form>
+{% endblock %}

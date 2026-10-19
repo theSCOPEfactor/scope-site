@@ -1,46 +1,73 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>Trading Journal</h1>
-<p class="sub">Month-by-month ledger of every trade: entry, exit, P&amp;L ane tamari thesis, ek j jagya e.</p>
-
-<div class="card row" style="justify-content:space-between">
-  <div class="row" style="gap:26px">
-    <div class="stat"><small>Capital</small><b id="capital">-</b> <button class="btn sm" onclick="editCap()">✎</button></div>
-    <div class="stat"><small>Exposure</small><b id="exposure">-</b></div>
-    <div class="stat"><small>Open</small><b id="open">-</b></div>
-  </div>
-  <div class="row">
-    <label class="btn primary">⬆ Import tradebook<input type="file" id="imp" accept=".csv" hidden></label>
-    <button class="btn danger" onclick="clearAll()">Clear all</button>
-  </div>
+<div class="pagehead">
+  <div><h1>Trading Journal</h1><p class="sub">Every trade, month by month, and the plan that gets you to your target.</p></div>
+  <div class="seg tabs" id="tabs"><button class="on" data-t="trades">Trades</button><button data-t="plan">Target plan</button></div>
 </div>
 
-<div class="months" id="months"></div>
+<!-- ============ TRADES ============ -->
+<section id="t-trades">
+  <div class="card row" style="justify-content:space-between">
+    <div class="row" style="gap:28px">
+      <div class="stat"><small>Capital</small><b id="capital">-</b> <button class="btn sm" onclick="editCap()">✎</button></div>
+      <div class="stat"><small>Exposure</small><b id="exposure">-</b></div>
+      <div class="stat"><small>Open</small><b id="openpos">-</b></div>
+    </div>
+    <div class="row">
+      <label class="btn primary">⬆ Import tradebook<input type="file" id="imp" accept=".csv" hidden></label>
+      <button class="btn danger" onclick="clearAll()">Clear all</button>
+    </div>
+  </div>
+  <div class="months" id="months"></div>
+  <div class="card"><div class="stats" id="stats"></div></div>
+  <div class="card">
+    <div class="wrap"><table>
+      <thead><tr><th class="l">Stock</th><th>Dir</th><th>Type</th><th>Qty</th><th>Avg entry</th><th>Avg exit / LTP</th><th>% move</th><th>Held</th><th>P&amp;L</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div style="text-align:center;margin-top:12px"><button class="btn primary" onclick="openForm()">＋ Log new trade</button></div>
+  </div>
+</section>
 
-<div class="card"><div class="stats" id="stats"></div></div>
-
-<div class="card">
-  <div class="wrap"><table>
-    <thead><tr><th class="l">Stock</th><th>Dir</th><th>Type</th><th>Qty</th><th>Avg E</th><th>Avg X / LTP</th><th>% Move</th><th>Held</th><th>P&amp;L</th><th></th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table></div>
-  <div style="text-align:center;margin-top:10px"><button class="btn" onclick="openForm()">＋ Log new trade</button></div>
-</div>
+<!-- ============ TARGET PLAN ============ -->
+<section id="t-plan" hidden>
+  <div class="card" id="planform">
+    <h2>Set your target</h2>
+    <div class="pf">
+      <div class="fld">Target type
+        <div class="seg" id="p_mode"><button data-v="target" class="on">Earning (₹)</button><button data-v="rate">% benefit</button></div></div>
+      <label class="fld" id="m_target">Target earning (₹)<input id="p_target" type="number" min="0" step="any" placeholder="e.g. 200000"></label>
+      <div class="fld" id="m_rate" hidden>Benefit I want
+        <div class="duo"><input id="p_rate" type="number" min="0" step="any" placeholder="e.g. 1">
+          <select id="p_period"><option value="daily">% per day</option><option value="weekly">% per week</option><option value="monthly" selected>% per month</option></select></div></div>
+      <div class="fld">Within
+        <div class="duo"><input id="p_dur" type="number" min="1" step="1" placeholder="3">
+          <select id="p_unit"><option value="days">days</option><option value="weeks">weeks</option><option value="months" selected>months</option></select></div></div>
+      <label class="fld">Start date<input id="p_start" type="date"></label>
+      <label class="fld chk"><input id="p_comp" type="checkbox" checked> Reinvest profits (compounding)</label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="p_save">Save plan</button>
+      <span class="mut">Capital: <b id="p_cap" style="color:var(--tx)">-</b> <button class="btn sm" onclick="editCap()">✎</button></span>
+    </div>
+  </div>
+  <div id="planout"></div>
+</section>
 
 <div class="modal" id="modal"><div class="card">
   <h2 id="mtitle">New trade</h2>
   <div class="form">
-    <label>Symbol<input id="f_symbol" list="syms" placeholder="HDFCBANK"></label>
-    <label>Direction<select id="f_dir"><option value="L">Long</option><option value="S">Short</option></select></label>
-    <label>Qty<input id="f_qty" type="number"></label>
-    <label>Type<select id="f_kind"><option value="C">Cash</option><option value="F">F&amp;O</option></select></label>
-    <label>Entry price<input id="f_ep" type="number" step="0.05"></label>
-    <label>Entry date<input id="f_ed" type="date"></label>
-    <label>Exit price (khali = open)<input id="f_xp" type="number" step="0.05"></label>
-    <label>Exit date<input id="f_xd" type="date"></label>
-    <label class="full">Thesis / note<textarea id="f_note" rows="3"></textarea></label>
+    <label class="fld">Symbol<input id="f_symbol" list="syms" placeholder="HDFCBANK"></label>
+    <label class="fld">Direction<select id="f_dir"><option value="L">Long</option><option value="S">Short</option></select></label>
+    <label class="fld">Qty<input id="f_qty" type="number"></label>
+    <label class="fld">Type<select id="f_kind"><option value="C">Cash</option><option value="F">F&amp;O</option></select></label>
+    <label class="fld">Entry price<input id="f_ep" type="number" step="0.05"></label>
+    <label class="fld">Entry date<input id="f_ed" type="date"></label>
+    <label class="fld">Exit price (blank = open)<input id="f_xp" type="number" step="0.05"></label>
+    <label class="fld">Exit date<input id="f_xd" type="date"></label>
+    <label class="fld full">Thesis / note<textarea id="f_note" rows="3"></textarea></label>
   </div>
-  <div class="row" style="margin-top:12px;justify-content:flex-end">
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
     <button class="btn" onclick="closeForm()">Cancel</button>
     <button class="btn primary" onclick="saveTrade()">Save</button>
   </div>
@@ -49,67 +76,206 @@
 {% endblock %}
 
 {% block scripts %}
+{% raw %}
 <script>
-let month = new Date().toISOString().slice(0,7), editId = null, DATA = null;
-const inr = n => (n<0?'-':'')+'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
-const cls = n => n>0?'pos':(n<0?'neg':'');
-const MN = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const $=id=>document.getElementById(id);
+const inr=n=>(n<0?'-':'')+'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
+const cls=n=>n>0?'pos':(n<0?'neg':'');
+const pct=(f,d)=>(f<0?'-':'')+Math.abs(f*100).toFixed(d==null?2:d)+'%';
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MN=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+let month=new Date().toISOString().slice(0,7), editId=null, DATA=null, CAP=0, planReady=false;
 
+/* ---------- tabs ---------- */
+function showTab(t){
+  [...$('tabs').children].forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('t-trades').hidden=t!=='trades'; $('t-plan').hidden=t!=='plan';
+  history.replaceState(null,'','#'+t);
+  if(t==='plan'&&!planReady){planReady=true;initPlan()}
+}
+$('tabs').onclick=e=>{const b=e.target.closest('button'); if(b) showTab(b.dataset.t)};
+
+/* ---------- trades ---------- */
 async function load(){
-  const r = await (await fetch('/api/journal?month='+month)).json();
-  DATA = r; const s = r.stats;
-  capital.textContent = inr(s.capital); exposure.textContent = inr(s.exposure); open.textContent = s.open+' positions';
-  // months
-  const y = +month.slice(0,4); let h='';
+  const r=await (await fetch('/api/journal?month='+month)).json(); DATA=r; const s=r.stats; CAP=s.capital;
+  $('capital').textContent=inr(s.capital); $('p_cap').textContent=inr(s.capital);
+  $('exposure').textContent=inr(s.exposure); $('openpos').textContent=s.open+' positions';
+  const y=+month.slice(0,4); let h='';
   for(let m=1;m<=12;m++){
-    const key = y+'-'+String(m).padStart(2,'0'), v = r.months[key];
-    h += `<button class="${key==month?'on':''}" onclick="month='${key}';load()">${MN[m-1]}<i class="${cls(v)}">${v===undefined?'·':inr(v)}</i></button>`;
+    const key=y+'-'+String(m).padStart(2,'0'), v=r.months[key];
+    h+=`<button class="${key==month?'on':''}" onclick="month='${key}';load()">${MN[m-1]}<i class="${cls(v)}">${v===undefined?'·':inr(v)}</i></button>`;
   }
-  months.innerHTML = `<button onclick="shiftY(-1)">‹</button><button disabled>${y}</button><button onclick="shiftY(1)">›</button>`+h;
-  const st = (l,v,c='')=>`<div class="stat"><small>${l}</small><b class="${c}">${v}</b></div>`;
-  stats.innerHTML = st('Realized',inr(s.realized),cls(s.realized))+st('Unrealized',inr(s.unrealized),cls(s.unrealized))
-   +st('Cum. ROI',s.roi+'%',cls(s.roi))+st('W / L',s.wl)+st('Batting avg',s.batting+'%')
-   +st('Win %','+'+s.win_pct+'%','pos')+st('Loss %',s.loss_pct+'%','neg')
-   +st('Avg held',s.avg_held+'d')+st('W held',s.w_held+'d','pos')+st('L held',s.l_held+'d','neg')
-   +st('Win ₹',inr(s.win_amt),'pos')+st('Loss ₹',inr(s.loss_amt),'neg');
-  rows.innerHTML = r.trades.length ? r.trades.map(t=>`<tr>
-    <td class="l"><b>${t.symbol}</b>${t.note?`<br><small class="mut">${t.note.replace(/</g,'&lt;').slice(0,60)}</small>`:''}</td>
+  $('months').innerHTML=`<button onclick="shiftY(-1)">‹</button><button disabled>${y}</button><button onclick="shiftY(1)">›</button>`+h;
+  const st=(l,v,c='')=>`<div class="stat"><small>${l}</small><b class="${c}">${v}</b></div>`;
+  $('stats').innerHTML=st('Realized',inr(s.realized),cls(s.realized))+st('Unrealized',inr(s.unrealized),cls(s.unrealized))
+    +st('Cum. ROI',s.roi+'%',cls(s.roi))+st('W / L',s.wl)+st('Batting avg',s.batting+'%')
+    +st('Avg win','+'+s.win_pct+'%','pos')+st('Avg loss',s.loss_pct+'%','neg')
+    +st('Avg held',s.avg_held+'d')+st('Winners held',s.w_held+'d','pos')+st('Losers held',s.l_held+'d','neg')
+    +st('Total won',inr(s.win_amt),'pos')+st('Total lost',inr(s.loss_amt),'neg');
+  $('rows').innerHTML=r.trades.length?r.trades.map(t=>`<tr>
+    <td class="l"><b>${esc(t.symbol)}</b>${t.note?`<br><small class="mut">${esc(t.note).slice(0,70)}</small>`:''}</td>
     <td><span class="tag ${t.dir}">${t.dir}</span></td><td>${t.kind}</td><td>${t.qty}</td>
     <td>${t.entry_price.toFixed(2)}</td><td>${t.px==null?'-':t.px.toFixed(2)}${t.closed?'':' <small class="mut">LTP</small>'}</td>
     <td class="${cls(t.pct)}">${t.pct>0?'+':''}${t.pct}%</td><td>${t.held}d</td>
     <td class="${cls(t.pnl)}"><b>${inr(t.pnl)}</b></td>
-    <td><button class="btn sm" onclick='openForm(${JSON.stringify(t)})'>✎</button> <button class="btn sm danger" onclick="del(${t.id})">✕</button></td></tr>`).join('')
-    : '<tr><td colspan="10" class="empty">Aa mahina ma koi trade nathi. "Log new trade" dabavo athva tradebook import karo.</td></tr>';
+    <td><button class="btn sm" onclick='openForm(${JSON.stringify(t).replace(/'/g,"&#39;")})'>✎</button> <button class="btn sm danger" onclick="del(${t.id})">✕</button></td></tr>`).join('')
+    :'<tr><td colspan="10" class="empty">No trades this month. Click "Log new trade" or import a tradebook.</td></tr>';
 }
-function shiftY(d){ month = (+month.slice(0,4)+d)+month.slice(4); load(); }
+function shiftY(d){month=(+month.slice(0,4)+d)+month.slice(4);load()}
 async function editCap(){
-  const v = prompt('Capital (₹):', DATA.stats.capital); if(!v) return;
-  await fetch('/api/capital',{method:'POST',body:JSON.stringify({capital:+v})}); load();
+  const v=prompt('Capital (₹):',CAP); if(!v) return;
+  await fetch('/api/capital',{method:'POST',body:JSON.stringify({capital:+v})}); await load(); if(planReady) renderPlan();
 }
 function openForm(t){
-  editId = t? t.id : null; mtitle.textContent = t? 'Edit trade':'New trade';
-  f_symbol.value=t?t.symbol:''; f_dir.value=t?t.dir:'L'; f_kind.value=t?t.kind:'C'; f_qty.value=t?t.qty:'';
-  f_ep.value=t?t.entry_price:''; f_ed.value=t?t.entry_date:new Date().toISOString().slice(0,10);
-  f_xp.value=t&&t.exit_price!=null?t.exit_price:''; f_xd.value=t&&t.exit_date?t.exit_date:''; f_note.value=t?t.note:'';
-  modal.classList.add('on');
+  editId=t?t.id:null; $('mtitle').textContent=t?'Edit trade':'New trade';
+  $('f_symbol').value=t?t.symbol:''; $('f_dir').value=t?t.dir:'L'; $('f_kind').value=t?t.kind:'C'; $('f_qty').value=t?t.qty:'';
+  $('f_ep').value=t?t.entry_price:''; $('f_ed').value=t?t.entry_date:new Date().toISOString().slice(0,10);
+  $('f_xp').value=t&&t.exit_price!=null?t.exit_price:''; $('f_xd').value=t&&t.exit_date?t.exit_date:''; $('f_note').value=t?t.note:'';
+  $('modal').classList.add('on');
 }
-function closeForm(){ modal.classList.remove('on'); }
+function closeForm(){$('modal').classList.remove('on')}
 async function saveTrade(){
-  const b = {symbol:f_symbol.value,dir:f_dir.value,kind:f_kind.value,qty:f_qty.value,entry_price:f_ep.value,
-    entry_date:f_ed.value,exit_price:f_xp.value,exit_date:f_xd.value,note:f_note.value};
-  if(!b.symbol||!b.qty||!b.entry_price||!b.entry_date){ alert('Symbol, qty, entry price ane date jaruri che'); return; }
-  if(b.exit_price && !b.exit_date) b.exit_date = new Date().toISOString().slice(0,10);
+  const b={symbol:$('f_symbol').value,dir:$('f_dir').value,kind:$('f_kind').value,qty:$('f_qty').value,entry_price:$('f_ep').value,
+    entry_date:$('f_ed').value,exit_price:$('f_xp').value,exit_date:$('f_xd').value,note:$('f_note').value};
+  if(!b.symbol||!b.qty||!b.entry_price||!b.entry_date){alert('Symbol, quantity, entry price and entry date are required');return}
+  if(b.exit_price&&!b.exit_date) b.exit_date=new Date().toISOString().slice(0,10);
   await fetch(editId?'/api/trade/'+editId:'/api/trade',{method:editId?'PUT':'POST',body:JSON.stringify(b)});
-  closeForm(); load();
+  closeForm(); toast('Trade saved'); load(); if(planReady) refreshPnl();
 }
-async function del(id){ if(confirm('Aa trade delete karvi?')){ await fetch('/api/trade/'+id,{method:'DELETE'}); load(); } }
-async function clearAll(){ if(confirm('BADHI trades delete thase. Pakku?')){ await fetch('/api/clear',{method:'POST'}); load(); } }
-imp.onchange = async e=>{
-  const fd = new FormData(); fd.append('file', e.target.files[0]);
-  const r = await (await fetch('/api/import',{method:'POST',body:fd})).json();
-  alert(r.ok? r.created+' trades import thayi' : (r.error||'Import fail')); e.target.value=''; load();
+async function del(id){ if(confirm('Delete this trade?')){await fetch('/api/trade/'+id,{method:'DELETE'}); load(); if(planReady) refreshPnl()} }
+async function clearAll(){ if(confirm('This deletes ALL trades. Sure?')){await fetch('/api/clear',{method:'POST'}); load(); if(planReady) refreshPnl()} }
+$('imp').onchange=async e=>{
+  const fd=new FormData(); fd.append('file',e.target.files[0]);
+  const r=await (await fetch('/api/import',{method:'POST',body:fd})).json();
+  alert(r.ok?r.created+' trades imported':(r.error||'Import failed')); e.target.value=''; load();
 };
-fetch('/api/stocks').then(r=>r.json()).then(d=>{ syms.innerHTML = d.stocks.map(s=>`<option value="${s.symbol}">`).join(''); });
+fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=d.stocks.map(s=>`<option value="${s.symbol}">`).join('')});
+
+/* ---------- target plan ---------- */
+let MODE='target', VIEW='monthly', PNL={closed:[],unrealized:0}, ROWS=[], BUILT=null;
+const todayIso=()=>ScopePlan.iso(new Date());
+
+function readPlan(){
+  const unit=$('p_unit').value, dur=+$('p_dur').value||0;
+  const days=unit==='days'?dur:unit==='weeks'?dur*7:Math.round(dur*30.4375);
+  return {mode:MODE,target:+$('p_target').value||0,rate:+$('p_rate').value||0,period:$('p_period').value,
+          dur:dur,unit:unit,days:days,start:$('p_start').value,compound:$('p_comp').checked};
+}
+function setMode(m){
+  MODE=m; [...$('p_mode').children].forEach(b=>b.classList.toggle('on',b.dataset.v===m));
+  $('m_target').hidden=m!=='target'; $('m_rate').hidden=m!=='rate';
+}
+async function refreshPnl(){PNL=await (await fetch('/api/pnl')).json(); renderPlan()}
+async function initPlan(){
+  const [pl]=await Promise.all([fetch('/api/plan').then(r=>r.json()), refreshPnlQuiet()]);
+  CAP=pl.capital||CAP; $('p_cap').textContent=inr(CAP);
+  const p=pl.plan||{mode:'target',dur:3,unit:'months',period:'monthly',start:todayIso(),compound:true};
+  setMode(p.mode||'target'); $('p_target').value=p.target||''; $('p_rate').value=p.rate||''; $('p_period').value=p.period||'monthly';
+  $('p_dur').value=p.dur||''; $('p_unit').value=p.unit||'months'; $('p_start').value=p.start||todayIso(); $('p_comp').checked=p.compound!==false;
+  renderPlan();
+}
+async function refreshPnlQuiet(){PNL=await (await fetch('/api/pnl')).json()}
+$('p_mode').onclick=e=>{const b=e.target.closest('button'); if(b){setMode(b.dataset.v);renderPlan()}};
+$('planform').addEventListener('input',()=>renderPlan());
+$('p_save').onclick=async()=>{
+  await fetch('/api/plan',{method:'POST',body:JSON.stringify(readPlan())}); toast('Plan saved ✓');
+};
+
+function keyOf(ds,mode){
+  if(mode==='daily') return ds; if(mode==='monthly') return ds.slice(0,7);
+  const d=ScopePlan.parse(ds); d.setDate(d.getDate()-((d.getDay()+6)%7)); return ScopePlan.iso(d);
+}
+function label(r,mode){
+  if(mode==='monthly') return new Date(r.key+'-01T00:00').toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+  const f=s=>ScopePlan.parse(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+  if(mode==='daily') return ScopePlan.parse(r.from).toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+  return r.from===r.to?f(r.from):f(r.from)+' – '+f(r.to);
+}
+function buildRows(B,start,mode){
+  const map=new Map(), act={};
+  PNL.closed.forEach(c=>{ if(c.date>=start){const k=keyOf(c.date,mode); act[k]=(act[k]||0)+c.pnl} });
+  B.days.forEach((d,i)=>{
+    const k=keyOf(d,mode); let r=map.get(k);
+    if(!r){r={key:k,from:d,to:d,n:0,s:B.eq[i],e:B.eq[i+1]}; map.set(k,r)}
+    r.to=d; r.n++; r.e=B.eq[i+1];
+  });
+  return [...map.values()].map(r=>({...r,gain:r.e-r.s,pc:(r.e-r.s)/r.s,actual:act[r.key]||0}));
+}
+
+function renderPlan(){
+  const p=readPlan(), out=$('planout'); BUILT=ScopePlan.build(p,CAP); const B=BUILT;
+  if(!B){out.innerHTML='<div class="card empty">Enter a target and a time frame, and your plan sheet appears here automatically.</div>';return}
+  const today=todayIso(), e=B.days.filter(d=>d<=today).length;
+  const closedSince=PNL.closed.filter(c=>c.date>=p.start&&c.date<=today).reduce((a,c)=>a+c.pnl,0);
+  const actual=closedSince+PNL.unrealized, planned=B.eq[Math.min(e,B.N)]-CAP, doneP=Math.max(0,Math.min(100,actual/B.T*100)), timeP=Math.round(e/B.N*100);
+  const diff=actual-planned; let status;
+  if(e===0) status=`<span class="badge b-mid">Starts ${ScopePlan.parse(p.start).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</span>`;
+  else if(Math.abs(diff)<B.T*0.02) status='<span class="badge b-ok">On track</span>';
+  else if(diff>0) status=`<span class="badge b-ok">Ahead by ${inr(diff)}</span>`;
+  else status=`<span class="badge b-hot">Behind by ${inr(-diff)}</span>`;
+  const m=B.rates.m, lvl=m<=.03?['b-ok','Realistic pace']:m<=.08?['b-mid','Ambitious pace']:m<=.15?['b-hot','Aggressive pace']:['b-ext','Extreme pace'];
+  const gain=n=>B.eq[Math.min(n,B.N)]-CAP;
+
+  /* what the journal says about expectancy */
+  const cl=PNL.closed; let exp='';
+  if(cl.length>=5){
+    const w=cl.filter(c=>c.pnl>0), l=cl.filter(c=>c.pnl<=0), wr=w.length/cl.length;
+    const aw=w.length?w.reduce((a,c)=>a+c.pnl,0)/w.length:0, al=l.length?l.reduce((a,c)=>a+c.pnl,0)/l.length:0, ex=wr*aw+(1-wr)*al;
+    exp=ex>0?`Your journal: ${Math.round(wr*100)}% win rate, average ${inr(ex)} per trade. At that pace you would need about <b>${Math.ceil(B.T/ex)}</b> trades in total, roughly <b>${Math.max(1,Math.ceil(B.T/ex/Math.max(B.N/21,1/21)))}</b> a month.`
+      :`Your journal's average trade is currently ${inr(ex)}, so this target is not yet supported by your own results.`;
+  } else exp='Log at least 5 closed trades and this plan will compare itself with your real average trade.';
+
+  ROWS=buildRows(B,p.start,VIEW);
+  const tot=ROWS.reduce((a,r)=>({g:a.g+r.gain,a:a.a+(r.from<=today?r.actual:0)}),{g:0,a:0});
+  const body=ROWS.map(r=>{
+    const started=r.from<=today, now=started&&r.to>=today, v=r.actual-r.gain;
+    return `<tr class="${now?'now':''}"><td class="l">${label(r,VIEW)}${now?' <span class="badge b-ok">now</span>':''}</td><td>${r.n}</td>
+      <td>${pct(r.pc)}</td><td>${inr(r.gain)}</td><td>${inr(r.e)}</td>
+      <td class="${started?cls(r.actual):'mut'}">${started?inr(r.actual):'–'}</td>
+      <td class="${started&&r.to<today?cls(v):'mut'}">${started&&r.to<today?inr(v):'–'}</td></tr>`}).join('');
+
+  out.innerHTML=`
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Your plan</h2><span class="badge ${lvl[0]}">${lvl[1]}</span></div>
+    <div class="pt">
+      <div><small>Target earning</small><b class="pos">${inr(B.T)}</b><em>${pct(B.R,1)} on ${inr(CAP)}</em></div>
+      <div><small>Target equity</small><b>${inr(CAP+B.T)}</b><em>by ${ScopePlan.parse(B.last).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</em></div>
+      <div><small>Trading days</small><b>${B.N}</b><em>weekdays, holidays not removed</em></div>
+      <div><small>Needed per day</small><b>${pct(B.rates.d)}</b><em>about ${inr(gain(1))} on day 1</em></div>
+      <div><small>Needed per week</small><b>${pct(B.rates.w)}</b><em>about ${inr(gain(5))} in week 1</em></div>
+      <div><small>Needed per month</small><b>${pct(B.rates.m)}</b><em>about ${inr(gain(21))} in month 1</em></div>
+    </div>
+    <div class="row" style="justify-content:space-between"><span>Progress (realized + open): <b class="${cls(actual)}">${inr(actual)}</b> of ${inr(B.T)}</span>${status}</div>
+    <div class="bar" title="Earned so far"><i style="width:${doneP}%"></i></div>
+    <div class="row mut" style="justify-content:space-between;font-size:12px;margin-top:-6px"><span>${Math.round(doneP)}% of target earned</span><span>${timeP}% of time used (${Math.min(e,B.N)} of ${B.N} trading days)</span></div>
+    <p class="note" style="margin-top:12px">${exp}</p>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div class="seg" id="vseg"><button data-v="monthly" class="${VIEW=='monthly'?'on':''}">Monthly</button><button data-v="weekly" class="${VIEW=='weekly'?'on':''}">Weekly</button><button data-v="daily" class="${VIEW=='daily'?'on':''}">Daily</button></div>
+      <button class="btn sm" id="csvbtn">⬇ Download sheet (CSV)</button>
+    </div>
+    <div class="sheet"><table>
+      <thead><tr><th class="l">Period</th><th>Days</th><th>Target %</th><th>Target ₹</th><th>Target equity</th><th>Actual ₹</th><th>vs plan</th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td class="l">Total</td><td>${B.N}</td><td>${pct(B.R)}</td><td>${inr(tot.g)}</td><td>${inr(CAP+B.T)}</td><td class="${cls(tot.a)}">${inr(tot.a)}</td><td></td></tr></tfoot>
+    </table></div>
+    <p class="note">Actual ₹ comes from your closed trades in the Journal (by exit date). This plan is arithmetic only: the higher the pace you ask of yourself, the higher the risk. It is not a forecast or advice.</p>
+  </div>`;
+  $('vseg').onclick=ev=>{const b=ev.target.closest('button'); if(b){VIEW=b.dataset.v; renderPlan()}};
+  $('csvbtn').onclick=downloadCsv;
+}
+function downloadCsv(){
+  const lines=[['Period','Trading days','Target %','Target gain','Target equity','Actual','Vs plan']];
+  const today=todayIso();
+  ROWS.forEach(r=>{const st=r.from<=today; lines.push([label(r,VIEW),r.n,(r.pc*100).toFixed(3),r.gain.toFixed(0),r.e.toFixed(0),st?r.actual.toFixed(0):'',st&&r.to<today?(r.actual-r.gain).toFixed(0):''])});
+  const csv=lines.map(l=>l.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='scope-plan-'+VIEW+'.csv'; a.click();
+}
+
 load();
+const qs=new URLSearchParams(location.search).get('tab');
+showTab(qs==='plan'||location.hash==='#plan'?'plan':'trades');
 </script>
+{% endraw %}
 {% endblock %}
