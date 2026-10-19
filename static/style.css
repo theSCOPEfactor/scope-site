@@ -264,3 +264,14 @@ body.mini .menu a:hover::after,body.mini .side .brand:hover::after,body.mini .co
 .nl a:hover{background:var(--glass-h);transform:translateX(3px)}
 .nl em{font-style:normal;color:var(--mut);font-size:12px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+
+.tip{position:absolute;pointer-events:none;padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.6;background:rgba(18,26,52,.95);border:1px solid var(--stroke);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:5;width:160px}
+.ind{display:flex;flex-wrap:wrap;gap:8px;padding:10px 6px 4px}
+
+/* stock page */
+.sum{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.newsl{display:flex;flex-direction:column;gap:6px}
+.newsi{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:10px;background:var(--glass);color:var(--tx);transition:all .2s}
+.newsi:hover{background:var(--glass-h);transform:translateX(3px)}
+.newsi em{font-style:normal;color:var(--mut);font-size:12px}
+tr.idx{cursor:pointer}
