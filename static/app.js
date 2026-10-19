@@ -118,7 +118,7 @@
 })();
 
 /* ===== shared: level names (flip NEUTRAL_NAMES to true for chart-style wording) + price ladder ===== */
-window.NEUTRAL_NAMES = false;
+window.NEUTRAL_NAMES = true;
 window.LVNAME = function (k) {
   var o = {d1:'Deep buy reversal 1', d2:'Deep buy reversal 2', t1:'Target 1', sr:'Sell reversal', br:'Buy reversal'};
   var n = {d1:'Deep reversal 1', d2:'Deep reversal 2', t1:'Extension', sr:'Upper reversal', br:'Lower reversal'};
