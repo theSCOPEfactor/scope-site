@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block body %}
+{% raw %}<div id="search" class="card">
+  <input id="q" list="syms" placeholder="Search any stock, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px" autofocus>
+  <datalist id="syms"></datalist>
+</div>
+<div id="page"></div>{% endraw %}
+{% endblock %}
+
+{% block scripts %}
+<script>const SYM="{{ sym }}";</script>
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fx=(n,u='')=>n==null?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})+u;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
+
+fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
+$('q').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
+$('q').addEventListener('change',()=>{const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)});
+
+function summary(s){
+  const out=[], R=s.vhigh-s.vlow;
+  const st={2:'Advancing (Stage 2): price is above its 50, 150 and 200 day averages and the long-term trend is rising.',
+    1:'Basing (Stage 1): moving sideways after a decline, no clear uptrend yet.',
+    3:'Topping (Stage 3): the uptrend is losing strength, price is below its 50 day average.',
+    4:'Declining (Stage 4): price is below a falling 200 day average.'}[s.stage];
+  out.push(st||'New listing: not enough history yet for a stage.');
+  if(s.stage==2) out.push(s.days_s2<=10?`Fresh Stage 2: only ${s.days_s2} day${s.days_s2==1?'':'s'} in Stage 2 so far.`:`${s.days_s2} days in Stage 2.`);
+  if(s.rs!=null) out.push(s.rs>=80?`Relative strength ${s.rs}: among the market leaders.`:s.rs>=50?`Relative strength ${s.rs}: better than half of the market.`:`Relative strength ${s.rs}: weaker than most stocks.`);
+  if(s.point!=null){
+    const pos=R>0?(s.price-s.vlow)/R:.5, dm=(s.price/s.point-1)*100;
+    out.push(s.zone?`Price zone: ${s.zone.toLowerCase()}.`:'');
+    out.push(`Price is ${Math.abs(dm).toFixed(1)}% ${dm>=0?'above':'below'} the magnet level, ${((s.vhigh/s.price-1)*100).toFixed(1)}% from VHIGH and ${((s.price/s.vlow-1)*100).toFixed(1)}% from VLOW.`);
+  }
+  return out.filter(Boolean);
+}
+function nextLevels(s){
+  const F=s.fib||{}, L=[['VLOW',s.vlow],['Buy reversal',F.buy_reversal],['Magnet',s.point,1],['Sell reversal',F.sell_reversal],['VHIGH',s.vhigh],['Target 1',F.target1]].filter(x=>x[1]!=null);
+  const up=L.filter(x=>x[1]>s.price).sort((a,b)=>a[1]-b[1])[0], dn=L.filter(x=>x[1]<=s.price).sort((a,b)=>b[1]-a[1])[0];
+  return {up,dn};
+}
+const row=(k,v)=>`<div class="stat"><small>${k}</small><b>${v}</b></div>`;
+
+function render(r){
+  const s=r.stock, det=r.detail||{}, pg=$('page');
+  if(!s){pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the scanned data yet. Check the spelling, or it may be a very new listing that appears after the next daily update.</p></div>`;return}
+  $('search').style.display='none';
+  const nl=s.point!=null?nextLevels(s):{};
+  const lv=x=>x?(x[2]?MAGNET(15):esc(x[0]))+' <b>'+f2(x[1])+'</b> <span class="mut">('+((x[1]/s.price-1)*100).toFixed(1)+'%)</span>':'-';
+  const fund=[['Market cap',det.mcap_cr!=null?'₹'+fx(det.mcap_cr)+' Cr':'-'],['P/E',fx(det.pe)],['P/B',fx(det.pb)],['ROE',fx(det.roe,'%')],['Debt / Equity',fx(det.de)],
+    ['Dividend yield',fx(det.div_yield,'%')],['EPS (₹)',fx(det.eps)],['Revenue growth',fx(det.rev_growth,'%')],['Earnings growth',fx(det.earn_growth,'%')],['Profit margin',fx(det.margin,'%')],['Insider holding',fx(det.insiders,'%')]];
+  const hasF=det.pe!=null||det.mcap_cr!=null||det.roe!=null;
+  const news=(det.news||[]).map(n=>`<a href="${esc(n.u)}" target="_blank" rel="noopener noreferrer" class="newsi"><span>${esc(n.t)}</span><em>${esc(n.s)}${n.s&&n.d?' · ':''}${esc(n.d)}</em></a>`).join('');
+  pg.innerHTML=`
+  <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span></h1>
+    <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p></div>
+    <div class="row"><a class="btn sm" href="/levels?s=${esc(s.symbol)}">Price ladder →</a></div></div>
+  <div class="card"><div class="stats">
+    ${row('Price','₹'+f2(s.price))}${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
+    ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}${row('RS',s.rs??'-')}
+    ${row('From 52W high',s.from_hi==null?'-':s.from_hi+'%')}${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
+  </div></div>
+  ${s.point!=null?`<div class="card"><h2>Key levels</h2><div class="stats">
+    ${row('VHIGH',f2(s.vhigh))}${row(MAGNET(17),f2(s.point))}${row('VLOW',f2(s.vlow))}
+    ${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
+  <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+    <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
+  <div class="card"><h2>Fundamentals</h2>${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet. They are added by the daily details update, for the larger listed companies.</p>'}
+    ${det.about?`<p class="note" style="margin-top:12px">${esc(det.about)}${det.about.length>=420?'…':''}</p>`:''}
+    <p class="note">Source: Yahoo Finance, collected once a day. May be delayed or incomplete.</p></div>
+  ${(r.member_of||[]).length?`<div class="card"><h2>Part of these indices</h2><div class="toprs">${r.member_of.map(n=>`<a class="chip" href="/index/${encodeURIComponent(n)}">${esc(n)}</a>`).join('')}</div></div>`:''}
+  <div class="card"><h2>Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News, opened from their own websites. Scope does not write or check them.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
+  <div id="mypos"></div>`;
+  fetch('/api/holdings').then(x=>x.json()).then(h=>{
+    const m=(h.holdings||[]).filter(x=>x.symbol==s.symbol); if(!m.length) return;
+    const q=m.reduce((a,x)=>a+x.qty,0), inv=m.reduce((a,x)=>a+x.qty*x.avg_price,0), val=q*s.price, pl=val-inv;
+    $('mypos').innerHTML=`<div class="card"><h2>Your holding</h2><div class="stats">${row('Quantity',q)}${row('Avg price',f2(inv/q))}${row('Value','₹'+f2(val))}
+      ${row('P&L',`<span class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${f2(pl)} (${(pl/inv*100).toFixed(1)}%)</span>`)}</div><a class="btn sm" href="/portfolio" style="margin-top:10px">Open portfolio →</a></div>`;
+  });
+}
+if(SYM) fetch('/api/detail/'+encodeURIComponent(SYM)).then(r=>r.json()).then(render);
+</script>
+{% endraw %}
+{% endblock %}

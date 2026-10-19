@@ -66,11 +66,11 @@ function draw(){
   $('allocl').innerHTML=top.slice(0,6).map((h,i)=>`<span style="color:${pal[i%pal.length]}">●</span> ${h.symbol} ${val?(h.value/val*100).toFixed(0):0}%`).join(' &nbsp; ');
   const L=H.slice().sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
   $('rows').innerHTML=L.map(h=>`<tr class="clk" style="${h.stoppx?'background:rgba(251,113,133,.1)':''}" data-id="${h.id}">
-    <td class="l"><a href="/levels?s=${h.symbol}" onclick="event.stopPropagation()"><b>${h.symbol}</b></a>${h.known?'':' <span class="mut" title="Not in scanned data - price uses your avg">?</span>'}</td>
+    <td class="l"><a href="/stock/${h.symbol}" onclick="event.stopPropagation()"><b>${h.symbol}</b></a>${h.known?'':' <span class="mut" title="Not in scanned data - price uses your avg">?</span>'}</td>
     <td>${h.qty}</td><td>${f2(h.avg_price)}</td><td>${f2(h.ltp)}</td><td>${f2(h.value)}</td>
     <td class="${cls(h.pnl)}">${sg(h.pnl)}</td><td class="${cls(h.pnlp)}">${h.pnlp.toFixed(2)}%</td><td class="${cls(h.day)}">${h.ltp!=null?sg(h.day):'-'}</td>
     <td class="${h.stoppx?'warn':''}">${f2(h.sl)}</td><td>${f2(h.target)}</td>
-    <td>${h.stage!=null?`<span class="tag s${h.stage}">S${h.stage}</span>`:'-'}</td><td>${h.rs??'-'}</td>
+    <td>${h.stage!=null?(h.stage?`<span class="tag s${h.stage}">S${h.stage}</span>`:'<span class="tag">NEW</span>'):'-'}</td><td>${h.rs??'-'}</td>
     <td class="acts"><button title="Edit">✎</button></td></tr>`).join('')
     ||'<tr><td colspan="13" class="empty">No holdings yet. Click “+ Add holding” or import your broker CSV.</td></tr>';
 }

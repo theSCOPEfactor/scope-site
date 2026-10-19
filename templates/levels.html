@@ -82,7 +82,7 @@ function detail(s){
     <small>${x.mag?MAGNET(20):x.name}</small><b>${f2(x.v)}</b><em>${(x.v/s.price-1)>=0?'+':''}${((x.v/s.price-1)*100).toFixed(1)}% from price</em></div>`).join('');
   box.innerHTML=`<div class="dh"><div><h2 class="sym">${s.symbol}</h2><span class="px">₹${f2(s.price)}</span>
     <span class="${s.chg>=0?'pos':'neg'}" style="margin-left:8px">${s.chg>=0?'+':''}${s.chg}%</span></div>
-    <div class="row">${s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New listing</span>'}${s.rs!=null?`<span class="rs">RS ${s.rs}</span>`:''}<span class="zone ${ZC[s.zone]||''}">${s.zone||''}</span></div></div>
+    <div class="row"><a class="btn sm" href="/stock/${s.symbol}">Full details →</a>${s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New listing</span>'}${s.rs!=null?`<span class="rs">RS ${s.rs}</span>`:''}<span class="zone ${ZC[s.zone]||''}">${s.zone||''}</span></div></div>
     <div class="dgrid"><div>${svg}</div><div class="lv">${chips}</div></div>`;
   box.querySelectorAll('[data-k]').forEach(el=>{
     el.addEventListener('mouseenter',()=>setHl(el.dataset.k,true));

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1 id="ttl">{{ name }}</h1><p class="sub" id="sub">Stocks in this index · data updated {{ updated }}</p></div>
+  <div class="row"><a class="btn sm" href="/">← All indices</a></div></div>
+<div class="card" id="lv"></div>
+<div class="card"><div class="stats" id="stats"></div></div>
+<div class="card">
+  <div class="filters">
+    <label class="fld">Search<input id="s" placeholder="symbol"></label>
+    <div class="fld">Show<div class="seg" id="seg"><button data-v="" class="on">All</button><button data-v="2">Stage 2</button><button data-v="lo">Near VLOW</button><button data-v="hi">Near VHIGH</button></div></div>
+  </div>
+  <div class="mut" id="count" style="margin-bottom:6px"></div>
+  <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="note" id="note"></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>const NAME={{ name|tojson }};</script>
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+let M=[], sortK='rs', sortD=-1, flt='';
+const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['rs','RS'],['stage','Stage'],['zone','Zone','l'],['vlow','VLOW'],['point',MAGNET(17)],['vhigh','VHIGH'],['pos','Range']];
+$('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
+$('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k){sortD=sortK==k?-sortD:-1; sortK=k; draw()}};
+$('seg').onclick=e=>{const b=e.target.closest('button'); if(!b) return; flt=b.dataset.v; [...$('seg').children].forEach(x=>x.classList.toggle('on',x===b)); draw()};
+$('s').oninput=draw;
+function box(t,l){ if(!l) return `<div class="stat"><small>${t}</small><b class="mut">-</b></div>`;
+  return `<div class="stat"><small>${t}</small><b>${f2(l.vlow)} · ${MAGNET(15)} ${f2(l.point)} · ${f2(l.vhigh)}</b></div>`}
+function draw(){
+  const t=$('s').value.trim().toUpperCase();
+  let L=M.filter(x=>(!t||x.symbol.includes(t))&&(flt==''||(flt=='2'?x.stage==2:flt=='lo'?(x.point!=null&&x.price/x.vlow-1<=.03):(x.point!=null&&1-x.price/x.vhigh<=.03&&x.price<=x.vhigh*1.0001))));
+  L.sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18; return sortK=='symbol'||sortK=='zone'?String(a[sortK]).localeCompare(String(b[sortK]))*-sortD:(A>B?1:A<B?-1:0)*sortD});
+  $('count').textContent=L.length+' stocks';
+  $('rows').innerHTML=L.map(x=>`<tr class="clk" data-s="${x.symbol}"><td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td>
+    <td class="${x.chg>=0?'pos':'neg'}">${x.chg>=0?'+':''}${x.chg}</td><td><span class="rs ${x.rs>=80?'hi':x.rs<40?'lo':''}">${x.rs??'-'}</span></td>
+    <td>${x.stage?`<span class="tag s${x.stage}">S${x.stage}</span>`:'<span class="tag">New</span>'}</td><td class="l mut">${x.zone||''}</td>
+    <td>${f2(x.vlow)}</td><td>${f2(x.point)}</td><td>${f2(x.vhigh)}</td>
+    <td><span class="rb"><i style="left:${Math.max(-4,Math.min(104,(x.pos??.5)*100))}%"></i></span></td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches.</td></tr>';
+}
+$('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) location.href='/stock/'+encodeURIComponent(tr.dataset.s)};
+fetch('/api/index?name='+encodeURIComponent(NAME)).then(r=>r.json()).then(r=>{
+  const i=r.index;
+  if(i){ $('ttl').innerHTML=`${NAME} <span class="${i.chg>=0?'pos':'neg'}" style="font-size:16px;margin-left:8px">${f2(i.price)} · ${i.chg>=0?'+':''}${i.chg}%</span>`;
+    $('lv').innerHTML=`<div class="stats">${box('Today · VLOW · magnet · VHIGH',i.day)}${box('52 Week · VLOW · magnet · VHIGH',i.w52)}</div>`;
+  } else $('lv').style.display='none';
+  if(!r.found){ $('stats').parentElement.style.display='none'; document.querySelector('.card:last-of-type').innerHTML='<h2>Stocks of this index</h2><p class="mut">The list of stocks in this index is not available yet. It is collected by the daily “Scope Details” update; run it once from GitHub Actions and refresh.</p>'; return }
+  M=r.members; M.forEach(x=>x.pos=x.vhigh>x.vlow?(x.price-x.vlow)/(x.vhigh-x.vlow):.5);
+  const up=M.filter(x=>x.chg>0).length, dn=M.filter(x=>x.chg<0).length, s2=M.filter(x=>x.stage==2).length, rs=M.filter(x=>x.rs!=null);
+  const it=[['Stocks',r.total,''],['Advancing',up,''],['Declining',dn,''],['In Stage 2',s2,''],['Avg RS',rs.length?rs.reduce((a,x)=>a+x.rs,0)/rs.length:0,'']];
+  $('stats').innerHTML=it.map((x,k)=>`<div class="stat"><small>${x[0]}</small><b id="m${k}">0</b></div>`).join('');
+  it.forEach((x,k)=>animateNum($('m'+k),x[1],v=>Math.round(v).toLocaleString('en-IN')));
+  $('note').textContent=r.missing?`${r.missing} of ${r.total} stocks are not in the scanned data (for example very new or low-volume listings), so they are not shown. “Near” means within 3%. Click a stock for its full details.`:'“Near” means within 3%. Click a stock for its full details.';
+  draw();
+});
+</script>
+{% endraw %}
+{% endblock %}
