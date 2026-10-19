@@ -7,6 +7,8 @@
 </section>
 
 <div class="tiles">
+  <a class="tile" href="{{ url_for('portfolio') }}"><h3>Portfolio</h3><p>Stocks you hold, with live P&amp;L, Stage and RS</p>
+    <div class="big" id="h_pf">-</div><p id="h_pfp">&nbsp;</p></a>
   <a class="tile" href="{{ url_for('journal') }}"><h3>Trading Journal</h3><p>Trades, P&amp;L and your target plan</p>
     <div class="big" id="h_real">-</div><p id="h_open">&nbsp;</p></a>
   <a class="tile" href="{{ url_for('levels') }}"><h3>Levels</h3><p>VHIGH, VLOW and key levels for every stock</p>
@@ -36,6 +38,11 @@ fetch('/api/stocks').then(r=>r.json()).then(d=>{
   animateNum(h_s2,s2.length); h_s2p.textContent=S.length?Math.round(s2.length/S.length*100)+'% of scanned stocks':'';
   const top=s2.filter(x=>x.rs).sort((a,b)=>b.rs-a.rs).slice(0,14);
   toprs.innerHTML=top.length?top.map(x=>`<a class="chip" href="/levels?s=${x.symbol}">${x.symbol} <b class="pos">${x.rs}</b></a>`).join(''):'<span class="mut">Appears once data is loaded.</span>';
+});
+fetch('/api/holdings').then(r=>r.json()).then(d=>{
+  const H=d.holdings||[]; let inv=0,val=0; H.forEach(h=>{inv+=h.qty*h.avg_price; val+=h.qty*(h.ltp!=null?h.ltp:h.avg_price)});
+  h_pf.textContent=H.length?(val-inv>=0?'+':'-')+'₹'+Math.abs(Math.round(val-inv)).toLocaleString('en-IN'):'0';
+  h_pf.className='big '+(val-inv>=0?'pos':'neg'); h_pfp.textContent=H.length?H.length+' holdings · '+((val/inv-1)*100).toFixed(1)+'%':'Add your first stock';
 });
 fetch('/api/journal').then(r=>r.json()).then(r=>{
   const s=r.stats; h_real.className='big '+(s.realized>0?'pos':s.realized<0?'neg':'');

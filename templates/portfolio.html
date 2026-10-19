@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Portfolio</h1><p class="sub">Stocks you currently hold · prices as of {{ updated }}</p></div>
+  <div class="row">
+    <label class="btn sm" style="cursor:pointer">Import broker CSV<input id="csv" type="file" accept=".csv" hidden></label>
+    <button class="btn primary" onclick="openForm()">+ Add holding</button>
+  </div>
+</div>
+
+<div class="card"><div class="stats" id="stats"></div>
+  <div class="alloc" id="alloc"></div><div class="mut" id="allocl" style="font-size:12px"></div></div>
+
+<div class="card">
+  <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="note">Prices come from the daily Scope data (end of day), not live. Stage and RS are shown for every holding. Red row = price is below your stop-loss. Your data is saved on this site; use <a href="/backup">Backup data</a> now and then to keep a copy.</p>
+</div>
+
+<div class="modal" id="modal"><div class="card">
+  <h2 id="mtitle">Add holding</h2>
+  <div class="form">
+    <label class="fld">Symbol<input id="f_symbol" list="syms" placeholder="RELIANCE"></label>
+    <label class="fld">Quantity<input id="f_qty" type="number" min="0" step="any"></label>
+    <label class="fld">Average buy price<input id="f_avg" type="number" min="0" step="0.05"></label>
+    <label class="fld">Buy date<input id="f_date" type="date"></label>
+    <label class="fld">Stop-loss<input id="f_sl" type="number" min="0" step="0.05"></label>
+    <label class="fld">Target<input id="f_tg" type="number" min="0" step="0.05"></label>
+    <label class="fld full">Note<textarea id="f_note" rows="2"></textarea></label>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:space-between">
+    <button class="btn danger" id="delbtn" onclick="del()" hidden>Delete</button>
+    <span class="row"><button class="btn" onclick="closeForm()">Cancel</button><button class="btn primary" onclick="save()">Save</button></span>
+  </div>
+</div></div>
+<datalist id="syms"></datalist>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+let H=[], editId=null, sortK='value', sortD=-1;
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const inr=n=>(n<0?'-':'')+'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
+const cols=[['symbol','Stock','l'],['qty','Qty'],['avg_price','Avg price'],['ltp','LTP'],['value','Value'],['pnl','P&L'],['pnlp','P&L %'],['day','Day'],['sl','Stop-loss'],['target','Target'],['stage','Stage'],['rs','RS'],['','']];
+$('head').innerHTML=cols.map(c=>`<th class="${c[0]?'sort':''} ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
+$('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k){sortD=sortK==k?-sortD:-1; sortK=k; draw()}};
+const cls=v=>v>0?'pos':v<0?'neg':'';
+const sg=v=>(v>0?'+':'')+f2(v);
+
+function enrich(h){
+  const px=h.ltp!=null?h.ltp:h.avg_price;
+  h.invested=h.qty*h.avg_price; h.value=h.qty*px; h.pnl=h.value-h.invested; h.pnlp=h.invested?h.pnl/h.invested*100:0;
+  h.day=h.chg!=null&&h.ltp!=null?h.value-h.value/(1+h.chg/100):0;
+  h.sl=h.stoploss; h.stoppx=h.ltp!=null&&h.sl!=null&&h.ltp<=h.sl;
+  return h;
+}
+function draw(){
+  H.forEach(enrich);
+  const inv=H.reduce((a,h)=>a+h.invested,0), val=H.reduce((a,h)=>a+h.value,0), pl=val-inv, day=H.reduce((a,h)=>a+h.day,0);
+  const items=[['Invested',inv,inr],['Current value',val,inr],['Total P&L',pl,inr],['P&L %',inv?pl/inv*100:0,v=>(v>=0?'+':'')+v.toFixed(2)+'%'],['Today',day,inr],['Holdings',H.length,v=>Math.round(v)]];
+  $('stats').innerHTML=items.map((x,i)=>`<div class="stat"><small>${x[0]}</small><b id="hs${i}" class="${i==2||i==3||i==4?cls(x[1]):''}">0</b></div>`).join('');
+  items.forEach((x,i)=>animateNum($('hs'+i),x[1],x[2]));
+  const pal=['#60a5fa','#a78bfa','#f5c04a','#34d399','#fb7185','#38bdf8','#fb923c','#2dd4bf'];
+  const top=H.slice().sort((a,b)=>b.value-a.value);
+  $('alloc').innerHTML=top.map((h,i)=>`<i title="${h.symbol}" style="width:${val?h.value/val*100:0}%;background:${pal[i%pal.length]}"></i>`).join('');
+  $('allocl').innerHTML=top.slice(0,6).map((h,i)=>`<span style="color:${pal[i%pal.length]}">●</span> ${h.symbol} ${val?(h.value/val*100).toFixed(0):0}%`).join(' &nbsp; ');
+  const L=H.slice().sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
+  $('rows').innerHTML=L.map(h=>`<tr class="clk" style="${h.stoppx?'background:rgba(251,113,133,.1)':''}" data-id="${h.id}">
+    <td class="l"><a href="/levels?s=${h.symbol}" onclick="event.stopPropagation()"><b>${h.symbol}</b></a>${h.known?'':' <span class="mut" title="Not in scanned data - price uses your avg">?</span>'}</td>
+    <td>${h.qty}</td><td>${f2(h.avg_price)}</td><td>${f2(h.ltp)}</td><td>${f2(h.value)}</td>
+    <td class="${cls(h.pnl)}">${sg(h.pnl)}</td><td class="${cls(h.pnlp)}">${h.pnlp.toFixed(2)}%</td><td class="${cls(h.day)}">${h.ltp!=null?sg(h.day):'-'}</td>
+    <td class="${h.stoppx?'warn':''}">${f2(h.sl)}</td><td>${f2(h.target)}</td>
+    <td>${h.stage!=null?`<span class="tag s${h.stage}">S${h.stage}</span>`:'-'}</td><td>${h.rs??'-'}</td>
+    <td class="acts"><button title="Edit">✎</button></td></tr>`).join('')
+    ||'<tr><td colspan="13" class="empty">No holdings yet. Click “+ Add holding” or import your broker CSV.</td></tr>';
+}
+function load(){ return fetch('/api/holdings').then(r=>r.json()).then(d=>{H=d.holdings; draw()}) }
+$('rows').onclick=e=>{const tr=e.target.closest('tr[data-id]'); if(tr) openForm(+tr.dataset.id)};
+
+function openForm(id){
+  editId=id||null; const h=H.find(x=>x.id==id)||{};
+  $('mtitle').textContent=id?'Edit holding':'Add holding'; $('delbtn').hidden=!id;
+  $('f_symbol').value=h.symbol||''; $('f_qty').value=h.qty??''; $('f_avg').value=h.avg_price??''; $('f_date').value=h.buy_date||'';
+  $('f_sl').value=h.stoploss??''; $('f_tg').value=h.target??''; $('f_note').value=h.note||'';
+  $('modal').classList.add('on');
+}
+function closeForm(){$('modal').classList.remove('on')}
+async function save(){
+  const body={symbol:$('f_symbol').value,qty:$('f_qty').value,avg_price:$('f_avg').value,buy_date:$('f_date').value,stoploss:$('f_sl').value,target:$('f_tg').value,note:$('f_note').value};
+  const r=await fetch(editId?'/api/holding/'+editId:'/api/holding',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json(); if(!j.ok){toast(j.error||'Error');return}
+  closeForm(); toast('Saved'); load();
+}
+async function del(){ if(!confirm('Delete this holding?')) return; await fetch('/api/holding/'+editId,{method:'DELETE'}); closeForm(); toast('Deleted'); load(); }
+$('csv').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return; const fd=new FormData(); fd.append('file',f);
+  const j=await (await fetch('/api/holdings/import',{method:'POST',body:fd})).json();
+  toast(j.ok?`Imported: ${j.added} new, ${j.updated} updated`:(j.error||'Error')); e.target.value=''; load();
+};
+fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
+load();
+</script>
+{% endraw %}
+{% endblock %}
