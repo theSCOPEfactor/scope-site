@@ -15,7 +15,7 @@ const $=id=>document.getElementById(id);
 const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fx=(n,u='')=>n==null?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})+u;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ZC={'Above VHIGH':'z-up','Near VHIGH':'z-hi','Inside range':'','Near VLOW':'z-lo','Below VLOW':'z-dn'};
+const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
 
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
@@ -32,13 +32,13 @@ function summary(s){
   if(s.rs!=null) out.push(s.rs>=80?`Relative strength ${s.rs}: among the market leaders.`:s.rs>=50?`Relative strength ${s.rs}: better than half of the market.`:`Relative strength ${s.rs}: weaker than most stocks.`);
   if(s.point!=null){
     const pos=R>0?(s.price-s.vlow)/R:.5, dm=(s.price/s.point-1)*100;
-    out.push(s.zone?`Price zone: ${s.zone.toLowerCase()}.`:'');
+    out.push(s.zone?`Price zone: ${ZONENAME(s.zone).toLowerCase()}.`:'');
     out.push(`Price is ${Math.abs(dm).toFixed(1)}% ${dm>=0?'above':'below'} the magnet level, ${((s.vhigh/s.price-1)*100).toFixed(1)}% from VHIGH and ${((s.price/s.vlow-1)*100).toFixed(1)}% from VLOW.`);
   }
   return out.filter(Boolean);
 }
 function nextLevels(s){
-  const F=s.fib||{}, L=[['VLOW',s.vlow],['Lower reversal',F.buy_reversal],['Magnet',s.point,1],['Upper reversal',F.sell_reversal],['VHIGH',s.vhigh],['Extension',F.target1]].filter(x=>x[1]!=null);
+  const F=s.fib||{}, L=[['VLOW',s.vlow],[LVNAME('br'),F.buy_reversal],['Magnet',s.point,1],[LVNAME('sr'),F.sell_reversal],['VHIGH',s.vhigh],[LVNAME('t1'),F.target1]].filter(x=>x[1]!=null);
   const up=L.filter(x=>x[1]>s.price).sort((a,b)=>a[1]-b[1])[0], dn=L.filter(x=>x[1]<=s.price).sort((a,b)=>b[1]-a[1])[0];
   return {up,dn};
 }
@@ -57,15 +57,13 @@ function render(r){
   pg.innerHTML=`
   <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span></h1>
     <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p></div>
-    <div class="row"><a class="btn sm" href="/levels?s=${esc(s.symbol)}">Price ladder →</a></div></div>
+    </div>
   <div class="card"><div class="stats">
     ${row('Price','₹'+f2(s.price))}${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
     ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}${row('RS',s.rs??'-')}
     ${row('From 52W high',s.from_hi==null?'-':s.from_hi+'%')}${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
   </div></div>
-  ${s.point!=null?`<div class="card"><h2>Key levels</h2><div class="stats">
-    ${row('VHIGH',f2(s.vhigh))}${row(MAGNET(17),f2(s.point))}${row('VLOW',f2(s.vlow))}
-    ${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
+  ${s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
   <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
     <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
   <div class="card"><h2>Fundamentals</h2>${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet. They are added by the daily details update, for the larger listed companies.</p>'}
@@ -74,6 +72,7 @@ function render(r){
   ${(r.member_of||[]).length?`<div class="card"><h2>Part of these indices</h2><div class="toprs">${r.member_of.map(n=>`<a class="chip" href="/index/${encodeURIComponent(n)}">${esc(n)}</a>`).join('')}</div></div>`:''}
   <div class="card"><h2>Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News, opened from their own websites. Scope does not write or check them.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
   <div id="mypos"></div>`;
+  ScopeLadder.bind($('page'));
   fetch('/api/holdings').then(x=>x.json()).then(h=>{
     const m=(h.holdings||[]).filter(x=>x.symbol==s.symbol); if(!m.length) return;
     const q=m.reduce((a,x)=>a+x.qty,0), inv=m.reduce((a,x)=>a+x.qty*x.avg_price,0), val=q*s.price, pl=val-inv;
