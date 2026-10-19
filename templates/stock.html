@@ -15,7 +15,7 @@ const $=id=>document.getElementById(id);
 const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fx=(n,u='')=>n==null?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})+u;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
+const ZC={'Above VHIGH':'z-up','Near VHIGH':'z-hi','Inside range':'','Near VLOW':'z-lo','Below VLOW':'z-dn'};
 
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
@@ -38,7 +38,7 @@ function summary(s){
   return out.filter(Boolean);
 }
 function nextLevels(s){
-  const F=s.fib||{}, L=[['VLOW',s.vlow],['Buy reversal',F.buy_reversal],['Magnet',s.point,1],['Sell reversal',F.sell_reversal],['VHIGH',s.vhigh],['Target 1',F.target1]].filter(x=>x[1]!=null);
+  const F=s.fib||{}, L=[['VLOW',s.vlow],['Lower reversal',F.buy_reversal],['Magnet',s.point,1],['Upper reversal',F.sell_reversal],['VHIGH',s.vhigh],['Extension',F.target1]].filter(x=>x[1]!=null);
   const up=L.filter(x=>x[1]>s.price).sort((a,b)=>a[1]-b[1])[0], dn=L.filter(x=>x[1]<=s.price).sort((a,b)=>b[1]-a[1])[0];
   return {up,dn};
 }
