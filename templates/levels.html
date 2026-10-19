@@ -33,8 +33,11 @@ $('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">$
 $('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k) sortBy(k)};
 
 function levelsOf(s){
-  const F=s.fib||{};
+  const F=s.fib||{}, R=s.vhigh-s.vlow;
+  const deep=m=>{const v=s.vlow-m*R; return v>0?v:null};      // levels below VLOW, measured in range-widths
   return [
+    {k:'d1',name:'Deep buy reversal 1',v:deep(0.272),c:'#38bdf8'},
+    {k:'d2',name:'Deep buy reversal 2',v:deep(0.618),c:'#818cf8'},
     {k:'t1',name:'Target 1',v:F.target1,c:'#a78bfa'},
     {k:'hi',name:'VHIGH · Breakout',v:s.vhigh,c:'#fb7185'},
     {k:'sr',name:'Sell reversal',v:F.sell_reversal,c:'#fb923c'},
