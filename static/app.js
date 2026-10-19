@@ -116,3 +116,70 @@
     return { C: cap, T: T, R: R, N: N, days: days, eq: eq, rates: rates, comp: comp, last: days[N - 1] };
   };
 })();
+
+/* ===== shared: level names (flip NEUTRAL_NAMES to true for chart-style wording) + price ladder ===== */
+window.NEUTRAL_NAMES = false;
+window.LVNAME = function (k) {
+  var o = {d1:'Deep buy reversal 1', d2:'Deep buy reversal 2', t1:'Target 1', sr:'Sell reversal', br:'Buy reversal'};
+  var n = {d1:'Deep reversal 1', d2:'Deep reversal 2', t1:'Extension', sr:'Upper reversal', br:'Lower reversal'};
+  return (window.NEUTRAL_NAMES ? n : o)[k];
+};
+window.ZONENAME = function (z) { return (window.NEUTRAL_NAMES && z) ? z.replace(' (sell zone)', '').replace(' (buy zone)', '') : z; };
+window.ScopeLadder = (function () {
+  var f2 = function (n) { return n == null ? '-' : Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+  function levelsOf(s) {
+    var F = s.fib || {}, R = s.vhigh - s.vlow;
+    var deep = function (m) { var v = s.vlow - m * R; return v > 0 ? v : null; };
+    return [
+      {k:'d1', name:LVNAME('d1'), v:deep(0.272), c:'#38bdf8'},
+      {k:'d2', name:LVNAME('d2'), v:deep(0.618), c:'#818cf8'},
+      {k:'t1', name:LVNAME('t1'), v:F.target1, c:'#a78bfa'},
+      {k:'hi', name:'VHIGH · Breakout', v:s.vhigh, c:'#fb7185'},
+      {k:'sr', name:LVNAME('sr'), v:F.sell_reversal, c:'#fb923c'},
+      {k:'mg', name:'', v:s.point, c:'#f5c04a', mag:true},
+      {k:'br', name:LVNAME('br'), v:F.buy_reversal, c:'#34d399'},
+      {k:'lo', name:'VLOW · Break down', v:s.vlow, c:'#2dd4bf'}
+    ].filter(function (x) { return x.v != null; });
+  }
+  function svg(s, L) {
+    var vals = L.map(function (x) { return x.v; }).concat([s.price]);
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), pad = (mx - mn) * .08 || 1; mn -= pad; mx += pad;
+    var top = 26, bot = 400, Y = function (v) { return top + (mx - v) / (mx - mn) * (bot - top); };
+    L.forEach(function (x) { x.y = Y(x.v); }); L.sort(function (a, b) { return a.y - b.y; });
+    var prev = -1e9; L.forEach(function (x) { x.ly = Math.max(x.y, prev + 34); prev = x.ly; });
+    var H = Math.max(bot + 34, prev + 30), py = Y(s.price), hi = L.find(function (x) { return x.k == 'hi'; }), lo = L.find(function (x) { return x.k == 'lo'; });
+    var g = '<svg class="ladder" viewBox="0 0 470 ' + H + '" role="img" aria-label="Price ladder">';
+    if (hi && lo) g += '<rect x="78" y="' + hi.y + '" width="200" height="' + Math.max(2, lo.y - hi.y) + '" rx="6" fill="rgba(45,212,191,.07)" stroke="rgba(45,212,191,.2)"/>';
+    g += '<line x1="78" y1="' + (top - 8) + '" x2="78" y2="' + (bot + 10) + '" stroke="rgba(255,255,255,.2)"/>';
+    L.forEach(function (x, i) {
+      var lab = x.mag ? '<g transform="translate(314,' + (x.ly - 11) + ') scale(1)">' + MAGNET(22) + '</g>' : '<text class="nm" x="314" y="' + (x.ly - 4) + '">' + x.name + '</text>';
+      g += '<g class="lvl" data-k="' + x.k + '" style="--c:' + x.c + '">' +
+        '<rect class="hit" x="0" y="' + (Math.min(x.y, x.ly) - 14) + '" width="470" height="' + (Math.abs(x.ly - x.y) + 30) + '"/>' +
+        '<line class="ln" x1="78" y1="' + x.y + '" x2="278" y2="' + x.y + '" style="animation-delay:' + (i * 70) + 'ms"/>' +
+        '<polyline class="ln" points="278,' + x.y + ' 296,' + x.ly + ' 308,' + x.ly + '" fill="none" style="animation-delay:' + (i * 70) + 'ms;stroke-width:1.2"/>' +
+        '<g class="lt" style="animation-delay:' + (200 + i * 70) + 'ms">' + lab + '<text class="vl" x="' + (x.mag ? 340 : 314) + '" y="' + (x.mag ? x.ly + 5 : x.ly + 13) + '">' + f2(x.v) + '</text></g></g>';
+    });
+    g += '<g class="pm"><line x1="78" y1="' + py + '" x2="278" y2="' + py + '" stroke="#fff" stroke-opacity=".5" stroke-dasharray="4 4"/>' +
+      '<circle class="ring" cx="78" cy="' + py + '" r="7" fill="#fff" fill-opacity=".4"/><circle cx="78" cy="' + py + '" r="6" fill="#fff" stroke="#0a1226" stroke-width="2"/>' +
+      '<text x="68" y="' + (py + 4) + '" text-anchor="end" fill="#fff" font-size="12" font-weight="700">' + f2(s.price) + '</text></g></svg>';
+    return g;
+  }
+  function chips(s, L) {
+    return L.slice().sort(function (a, b) { return b.v - a.v; }).map(function (x) {
+      var d = (x.v / s.price - 1);
+      return '<div class="lvc" data-k="' + x.k + '" style="--c:' + x.c + '"><small>' + (x.mag ? MAGNET(20) : x.name) + '</small><b>' + f2(x.v) + '</b><em>' + (d >= 0 ? '+' : '') + (d * 100).toFixed(1) + '% from price</em></div>';
+    }).join('');
+  }
+  function html(s) {          /* ladder + chips for one stock */
+    var L = levelsOf(s);
+    return '<div class="dgrid"><div>' + svg(s, L) + '</div><div class="lv">' + chips(s, L) + '</div></div>';
+  }
+  function bind(box) {
+    var set = function (k, on) { box.querySelectorAll('[data-k="' + k + '"]').forEach(function (el) { el.classList.toggle('hl', on); }); };
+    box.querySelectorAll('[data-k]').forEach(function (el) {
+      el.addEventListener('mouseenter', function () { set(el.dataset.k, true); });
+      el.addEventListener('mouseleave', function () { set(el.dataset.k, false); });
+    });
+  }
+  return {levelsOf: levelsOf, html: html, bind: bind};
+})();
