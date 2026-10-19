@@ -7,11 +7,11 @@ Environment variables (WSGI file ma set karvana):
   GITHUB_TOKEN     - fine-grained token (repo: Contents read-only)
   GITHUB_REPO      - e.g. mrunal/scope-site
 """
-import os, io, csv, json, time, sqlite3, datetime as dt
+import os, io, re, csv, json, time, sqlite3, datetime as dt
 from collections import defaultdict
 import requests
 from flask import (Flask, render_template, request, redirect, url_for,
-                   session, jsonify, g)
+                   session, jsonify, g, send_file)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE, "journal.db")
@@ -64,6 +64,16 @@ def init_db():
       note TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT);
+    CREATE TABLE IF NOT EXISTS holdings(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      qty REAL NOT NULL,
+      avg_price REAL NOT NULL,
+      buy_date TEXT,
+      stoploss REAL,
+      target REAL,
+      note TEXT DEFAULT ''
+    );
     INSERT OR IGNORE INTO settings VALUES('capital','1000000');
     """)
     con.commit(); con.close()
@@ -187,6 +197,17 @@ def stage2():
 @app.route("/journal")
 def journal():
     return render_template("journal.html", active="journal")
+
+
+@app.route("/portfolio")
+def portfolio():
+    return render_template("portfolio.html", active="portfolio", updated=get_data()["updated"])
+
+
+@app.route("/backup")
+def backup():
+    """download the whole journal + portfolio database (keep a copy somewhere safe)"""
+    return send_file(DB_PATH, as_attachment=True, download_name="scope-backup-" + dt.date.today().isoformat() + ".db")
 
 
 # ---------------------------------------------------------------- journal logic
@@ -342,6 +363,98 @@ def api_pnl():
         else:
             unreal += pnl
     return jsonify({"closed": closed, "unrealized": round(unreal, 2)})
+
+
+# ---------------------------------------------------------------- portfolio (holdings)
+def _num(x, default=None):
+    try:
+        s = str(x).replace(",", "").replace("₹", "").strip()
+        return float(s) if s != "" else default
+    except ValueError:
+        return default
+
+
+def _norm_sym(s):
+    s = str(s or "").strip().upper().split(":")[-1]          # NSE:RELIANCE -> RELIANCE
+    for suf in ("-EQ", ".NS", "-BE"):
+        if s.endswith(suf):
+            s = s[: -len(suf)]
+    return s.strip()
+
+
+@app.route("/api/holdings")
+def api_holdings():
+    data = get_data()
+    stocks = {s["symbol"]: s for s in data["stocks"]}
+    out = []
+    for r in db().execute("SELECT * FROM holdings ORDER BY symbol").fetchall():
+        h = dict(r)
+        s = stocks.get(h["symbol"]) or {}
+        h.update(ltp=s.get("price"), chg=s.get("chg"), stage=s.get("stage"), rs=s.get("rs"), zone=s.get("zone"),
+                 vlow=s.get("vlow"), vhigh=s.get("vhigh"), known=bool(s))
+        out.append(h)
+    return jsonify({"holdings": out, "updated": data.get("updated")})
+
+
+@app.route("/api/holding", methods=["POST"])
+def api_holding_add():
+    d = request.get_json(force=True)
+    sym, qty, avg = _norm_sym(d.get("symbol")), _num(d.get("qty")), _num(d.get("avg_price"))
+    if not sym or not qty or qty <= 0 or not avg or avg <= 0:
+        return jsonify(ok=False, error="Symbol, quantity and average price are required"), 400
+    db().execute("INSERT INTO holdings(symbol,qty,avg_price,buy_date,stoploss,target,note) VALUES(?,?,?,?,?,?,?)",
+                 (sym, qty, avg, d.get("buy_date") or None, _num(d.get("stoploss")), _num(d.get("target")), d.get("note", "")))
+    db().commit()
+    return jsonify(ok=True)
+
+
+@app.route("/api/holding/<int:hid>", methods=["PUT", "DELETE"])
+def api_holding_edit(hid):
+    if request.method == "DELETE":
+        db().execute("DELETE FROM holdings WHERE id=?", (hid,))
+    else:
+        d = request.get_json(force=True)
+        sym, qty, avg = _norm_sym(d.get("symbol")), _num(d.get("qty")), _num(d.get("avg_price"))
+        if not sym or not qty or qty <= 0 or not avg or avg <= 0:
+            return jsonify(ok=False, error="Symbol, quantity and average price are required"), 400
+        db().execute("UPDATE holdings SET symbol=?,qty=?,avg_price=?,buy_date=?,stoploss=?,target=?,note=? WHERE id=?",
+                     (sym, qty, avg, d.get("buy_date") or None, _num(d.get("stoploss")), _num(d.get("target")),
+                      d.get("note", ""), hid))
+    db().commit()
+    return jsonify(ok=True)
+
+
+def _pick(row, names):
+    norm = {re.sub(r"[^a-z0-9]", "", (k or "").lower()): v for k, v in row.items()}
+    for n in names:
+        if n in norm and str(norm[n]).strip() != "":
+            return norm[n]
+    return None
+
+
+@app.route("/api/holdings/import", methods=["POST"])
+def api_holdings_import():
+    """Broker holdings CSV (e.g. Zerodha: Instrument, Qty., Avg. cost). Same symbol = updated, new symbol = added."""
+    f = request.files.get("file")
+    if not f:
+        return jsonify(ok=False, error="No file"), 400
+    text = f.read().decode("utf-8-sig", errors="ignore")
+    con, added, updated = db(), 0, 0
+    for row in csv.DictReader(io.StringIO(text)):
+        sym = _norm_sym(_pick(row, ["symbol", "instrument", "tradingsymbol", "scrip", "stock", "name"]))
+        qty = _num(_pick(row, ["qty", "quantity", "shares"]))
+        avg = _num(_pick(row, ["avgcost", "averagecost", "avgprice", "averageprice", "buyprice", "avgbuyprice", "buyavg", "price"]))
+        if not sym or not qty or qty <= 0 or not avg or avg <= 0:
+            continue
+        ex = con.execute("SELECT id FROM holdings WHERE symbol=?", (sym,)).fetchone()
+        if ex:
+            con.execute("UPDATE holdings SET qty=?, avg_price=? WHERE id=?", (qty, avg, ex["id"]))
+            updated += 1
+        else:
+            con.execute("INSERT INTO holdings(symbol,qty,avg_price) VALUES(?,?,?)", (sym, qty, avg))
+            added += 1
+    con.commit()
+    return jsonify(ok=True, added=added, updated=updated)
 
 
 @app.route("/api/capital", methods=["POST"])
