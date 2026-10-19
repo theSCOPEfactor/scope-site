@@ -53,7 +53,7 @@ function draw(){
     <td class="l"><b>${x.symbol}</b></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td>
     <td><span class="rs ${x.rs>=80?'hi':x.rs<40?'lo':''}">${x.rs??'-'}</span></td>
     <td><span class="tag s${x.stage}">S${x.stage}</span></td><td>${x.stage==2?x.days_s2:'-'}</td>
-    <td class="${x.from_hi<-25?'neg':''}">${x.from_hi}%</td><td>${f2(x.sma50)}</td><td>${f2(x.sma200)}</td>
+    <td class="${x.from_hi<-25?'neg':''}">${x.from_hi==null?'-':x.from_hi+'%'}</td><td>${f2(x.sma50)}</td><td>${f2(x.sma200)}</td>
     <td class="l mut">${x.zone||''}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches these filters.</td></tr>';
 }
 $('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) location.href='/levels?s='+encodeURIComponent(tr.dataset.s)};

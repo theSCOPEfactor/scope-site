@@ -105,6 +105,17 @@ def logout():
 _mem = {"t": 0, "data": None, "src": "-", "err": ""}
 
 
+def _clean(o):
+    """NaN/Infinity are not valid JSON for browsers: turn them into null."""
+    if isinstance(o, float):
+        return o if o == o and o not in (float("inf"), float("-inf")) else None
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_clean(v) for v in o]
+    return o
+
+
 def get_data():
     """GitHub (fresh) -> otherwise the newest of cached copy / local data.json. Reason is kept in _mem for /api/status."""
     if _mem["data"] and time.time() - _mem["t"] < 1800:
@@ -117,7 +128,7 @@ def get_data():
                              headers={"Authorization": f"Bearer {tok}",
                                       "Accept": "application/vnd.github.raw"}, timeout=30)
             if r.ok:
-                data, src = r.json(), "GitHub (live)"
+                data, src = _clean(json.loads(r.text)), "GitHub (live)"
                 with open(CACHE_PATH, "w") as f:
                     json.dump(data, f)
             else:
@@ -132,7 +143,7 @@ def get_data():
             if os.path.exists(p):
                 try:
                     with open(p) as f:
-                        d = json.load(f)
+                        d = _clean(json.load(f))
                 except Exception:
                     continue
                 if best is None or str(d.get("updated", "")) > str(best[0].get("updated", "")):

@@ -206,9 +206,19 @@ def main():
         r["rs"] = int(pct.get(r["symbol"], 0)) if r["symbol"] in pct else None
         r.pop("rs_raw", None)
 
-    out = {"updated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "count": len(rows), "stocks": rows}
+    def clean(o):                      # NaN is not valid JSON (browsers reject it) -> null
+        if isinstance(o, float):
+            return o if np.isfinite(o) else None
+        if isinstance(o, dict):
+            return {k: clean(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [clean(v) for v in o]
+        return o
+
+    ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)      # show India time
+    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "stocks": rows}
     with open("data.json", "w") as f:
-        json.dump(out, f, separators=(",", ":"))
+        json.dump(clean(out), f, separators=(",", ":"), allow_nan=False)
     print("Saved data.json:", len(rows), "stocks, failed:", fails)
 
 
