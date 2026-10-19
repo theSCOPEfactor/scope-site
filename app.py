@@ -181,7 +181,7 @@ def api_stocks():
 # ---------------------------------------------------------------- pages
 @app.route("/")
 def home():
-    return render_template("home.html", active="home")
+    return render_template("home.html", active="home", updated=get_data()["updated"])
 
 
 @app.route("/levels")
