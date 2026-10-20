@@ -84,6 +84,12 @@ function render(r){
   </div>`:''}Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
   <div id="mypos"></div>`;
   ScopeLadder.bind($('page'));
+    const peersBox = pg.querySelector('.card tbody');
+  // better: bind only peer table
+  pg.querySelectorAll('tr.clk[data-s]').forEach(tr=>{
+    tr.style.cursor='pointer';
+    tr.onclick=()=>{ location.href='/stock/'+encodeURIComponent(tr.dataset.s); };
+  });
   fetch('/api/holdings').then(x=>x.json()).then(h=>{
     const m=(h.holdings||[]).filter(x=>x.symbol==s.symbol); if(!m.length) return;
     const q=m.reduce((a,x)=>a+x.qty,0), inv=m.reduce((a,x)=>a+x.qty*x.avg_price,0), val=q*s.price, pl=val-inv;
