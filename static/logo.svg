@@ -1,52 +1,94 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Scope">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#16244a"/><stop offset="1" stop-color="#060b1c"/>
-    </linearGradient>
     <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe08a"/><stop offset=".5" stop-color="#60a5fa"/><stop offset="1" stop-color="#a78bfa"/>
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset=".45" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#a78bfa"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffe9a8"/><stop offset=".6" stop-color="#f5b942"/><stop offset="1" stop-color="#c98a1a"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1b3a"/>
+      <stop offset="1" stop-color="#050914"/>
     </linearGradient>
-    <radialGradient id="iris" cx=".42" cy=".38" r=".8">
-      <stop offset="0" stop-color="#7cc0ff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f5c"/>
+    <radialGradient id="iris" cx="42%" cy="38%" r="72%">
+      <stop offset="0" stop-color="#1e3a6e"/>
+      <stop offset="1" stop-color="#071028"/>
     </radialGradient>
-    <clipPath id="irisClip"><circle cx="32" cy="32" r="12.5"/></clipPath>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <clipPath id="eyeClip">
+      <path d="M4 32 Q32 8 60 32 Q32 56 4 32 Z"/>
+    </clipPath>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
+
   <style>
-    .ring{transform-origin:32px 32px;animation:spin 16s linear infinite}
-    .ring2{transform-origin:32px 32px;animation:spin 24s linear infinite reverse}
-    .bar{animation:breathe 3.2s ease-in-out infinite;transform-origin:19.5px 32px}
-    .bar:nth-child(2){animation-delay:.3s}.bar:nth-child(3){animation-delay:.6s}.bar:nth-child(5){animation-delay:.9s}.bar:nth-child(6){animation-delay:1.2s}
-    .halo{animation:pulse 3.2s ease-in-out infinite;transform-origin:32px 32px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes breathe{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.12)}}
-    @keyframes pulse{0%,100%{opacity:.25}50%{opacity:.7}}
+    .blink-m { animation: blink 1.4s ease-in-out infinite; }
+    .blink-g { animation: blink 1.4s ease-in-out .45s infinite; }
+    .blink-d { animation: blink 1.4s ease-in-out .9s infinite; }
+    .orbit { transform-origin:32px 32px; animation:spin 16s linear infinite; }
+    @keyframes blink {
+      0%,100% { opacity:.25; r:1.2; }
+      50% { opacity:1; r:2.1; }
+    }
+    @keyframes spin { to { transform:rotate(360deg) } }
+    @media (prefers-reduced-motion:reduce) {
+      .blink-m,.blink-g,.blink-d,.orbit { animation:none!important; opacity:1; }
+    }
   </style>
+
+  <!-- tile -->
   <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)" stroke="url(#rim)" stroke-width="1.6"/>
-  <ellipse class="halo" cx="32" cy="32" rx="26" ry="14" fill="none" stroke="#60a5fa" stroke-width=".6"/>
-  <path d="M5 32 Q32 8 59 32 Q32 56 5 32 Z" fill="#081027" stroke="url(#rim)" stroke-width="1.5"/>
-  <circle cx="32" cy="32" r="13" fill="url(#iris)"/>
-  <g clip-path="url(#irisClip)">
-    <g>
-      <rect class="bar" x="19.5" y="22.6" width="8"  height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
-      <rect class="bar" x="19.5" y="25.6" width="12" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
-      <rect class="bar" x="19.5" y="28.6" width="17" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".8"/>
-      <rect class="bar" x="19.5" y="31.4" width="24" height="3.0" rx="1.5" fill="url(#gold)" filter="url(#glow)"/>
-      <rect class="bar" x="19.5" y="35.0" width="18" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".8"/>
-      <rect class="bar" x="19.5" y="38.0" width="12" height="2.2" rx="1.1" fill="#bfe0ff" opacity=".75"/>
-      <rect class="bar" x="19.5" y="41.0" width="7"  height="2.2" rx="1.1" fill="#bfe0ff" opacity=".7"/>
+
+  <!-- eye outline -->
+  <path d="M4 32 Q32 8 60 32 Q32 56 4 32 Z" fill="#060b1c" stroke="url(#rim)" stroke-width="1.4"/>
+
+  <!-- iris area -->
+  <circle cx="32" cy="32" r="14" fill="url(#iris)"/>
+
+  <!-- India map (simplified), clipped to eye -->
+  <g clip-path="url(#eyeClip)">
+    <!-- soft iris wash -->
+    <circle cx="32" cy="32" r="13.2" fill="#0a162e"/>
+
+    <!-- India silhouette — centered in eye -->
+    <g transform="translate(32 33) scale(0.42) translate(-40 -48)">
+      <path fill="#3b82f6" fill-opacity=".9" stroke="#93c5fd" stroke-width="1.2" stroke-linejoin="round"
+        d="M42 8
+           C48 10 52 16 54 22
+           C56 28 55 34 53 40
+           C52 46 54 52 50 58
+           C46 64 40 68 36 74
+           C32 80 30 86 28 90
+           C24 86 22 80 20 74
+           C16 68 12 62 10 54
+           C8 46 6 38 8 30
+           C10 22 14 16 20 12
+           C26 8 34 6 42 8 Z
+           M28 18 C30 14 34 12 38 14 C36 18 32 20 28 18 Z"/>
+      <!-- south tip emphasis -->
+      <path fill="#60a5fa" d="M28 88 C30 92 32 96 30 98 C28 96 26 92 28 88 Z"/>
     </g>
+
+    <!-- Stock exchange blink points (map coords scaled into eye) -->
+    <!-- Mumbai — BSE + NSE (primary) -->
+    <circle class="blink-m" cx="27.5" cy="38.5" r="1.8" fill="#f5c04a" filter="url(#glow)"/>
+    <circle cx="27.5" cy="38.5" r="3.2" fill="none" stroke="#f5c04a" stroke-opacity=".35" stroke-width=".6">
+      <animate attributeName="r" values="2.2;4;2.2" dur="1.4s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values=".5;0;0.5" dur="1.4s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- GIFT City / Gujarat IFSC -->
+    <circle class="blink-g" cx="26" cy="34.5" r="1.3" fill="#34d399" filter="url(#glow)"/>
+
+    <!-- Delhi NCR (financial hub) -->
+    <circle class="blink-d" cx="29.5" cy="28.5" r="1.2" fill="#60a5fa" filter="url(#glow)"/>
   </g>
-  <circle class="ring" cx="32" cy="32" r="15.4" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width=".7" stroke-dasharray="2.2 2.6"/>
-  <g class="ring2" stroke="#f5b942" stroke-width="1.2" stroke-linecap="round">
-    <line x1="32" y1="14.2" x2="32" y2="17.4"/><line x1="32" y1="46.6" x2="32" y2="49.8"/>
-    <line x1="14.2" y1="32" x2="17.4" y2="32"/><line x1="46.6" y1="32" x2="49.8" y2="32"/>
-  </g>
-  <circle cx="37.4" cy="26.6" r="2" fill="#fff" opacity=".85"/>
-  <circle cx="35" cy="29" r=".8" fill="#fff" opacity=".6"/>
+
+  <!-- orbit ring -->
+  <circle class="orbit" cx="32" cy="32" r="15.5" fill="none" stroke="#fff" stroke-opacity=".4"
+          stroke-width=".65" stroke-dasharray="2.2 2.6"/>
+
+  <!-- highlight -->
+  <circle cx="38" cy="26" r="1.8" fill="#fff" opacity=".75"/>
 </svg>
