@@ -14,12 +14,12 @@ const $=id=>document.getElementById(id);
 const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fx=(n,u='')=>n==null?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})+u;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
 $('q').addEventListener('change',()=>{const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)});
+
 function summary(s){
-  const out=[], R=s.vhigh-s.vlow;
+  const out=[];
   const st={2:'Advancing (Stage 2): price is above its 50, 150 and 200 day averages and the long-term trend is rising.',
     1:'Basing (Stage 1): moving sideways after a decline, no clear uptrend yet.',
     3:'Topping (Stage 3): the uptrend is losing strength, price is below its 50 day average.',
@@ -40,63 +40,95 @@ function nextLevels(s){
   return {up,dn};
 }
 const row=(k,v)=>`<div class="stat"><small>${k}</small><b>${v}</b></div>`;
+
 function render(r){
   const s=r.stock, det=r.detail||{}, pg=$('page');
-  if(!s){pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the scanned data yet. Check the spelling, or it may be a very new listing that appears after the next daily update.</p></div>`;return}
+  if(!s){
+    pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the scanned data yet. Check the spelling, or it may be a very new listing that appears after the next daily update.</p></div>`;
+    return;
+  }
   $('search').style.display='none';
   const nl=s.point!=null?nextLevels(s):{};
   const lv=x=>x?(x[2]?MAGNET(15):esc(x[0]))+' <b>'+f2(x[1])+'</b> <span class="mut">('+((x[1]/s.price-1)*100).toFixed(1)+'%)</span>':'-';
-  const fund=[['Market cap',det.mcap_cr!=null?'₹'+fx(det.mcap_cr)+' Cr':'-'],['P/E',fx(det.pe)],['P/B',fx(det.pb)],['ROE',fx(det.roe,'%')],['Debt / Equity',fx(det.de)],
-    ['Dividend yield',fx(det.div_yield,'%')],['EPS (₹)',fx(det.eps)],['Revenue growth',fx(det.rev_growth,'%')],['Earnings growth',fx(det.earn_growth,'%')],['Profit margin',fx(det.margin,'%')],['Insider holding',fx(det.insiders,'%')]];
+  const fund=[
+    ['Market cap',det.mcap_cr!=null?'₹'+fx(det.mcap_cr)+' Cr':'-'],['P/E',fx(det.pe)],['P/B',fx(det.pb)],['ROE',fx(det.roe,'%')],['Debt / Equity',fx(det.de)],
+    ['Dividend yield',fx(det.div_yield,'%')],['EPS (₹)',fx(det.eps)],['Revenue growth',fx(det.rev_growth,'%')],['Earnings growth',fx(det.earn_growth,'%')],['Profit margin',fx(det.margin,'%')],['Insider holding',fx(det.insiders,'%')]
+  ];
   const hasF=det.pe!=null||det.mcap_cr!=null||det.roe!=null;
   const news=(det.news||[]).map(n=>`<a href="${esc(n.u)}" target="_blank" rel="noopener noreferrer" class="newsi"><span>${esc(n.t)}</span><em>${esc(n.s)}${n.s&&n.d?' · ':''}${esc(n.d)}</em></a>`).join('');
+
+  const peersHtml=(r.peers&&r.peers.length)?`
+  <div class="card">
+    <h2>Peers${r.peers_industry?` · <span class="mut" style="font-weight:400">${esc(r.peers_industry)}</span>`:''}</h2>
+    <div class="wrap"><table>
+      <thead><tr>
+        <th class="l">Stock</th><th>Price</th><th>Chg %</th><th>RS</th><th>Stage</th><th class="l">Zone</th><th>Mcap (Cr)</th><th>P/E</th>
+      </tr></thead>
+      <tbody>
+        ${r.peers.map(p=>`<tr class="clk" data-s="${esc(p.symbol)}">
+          <td class="l"><b>${esc(p.symbol)}</b>${p.name?`<br><small class="mut">${esc(p.name)}</small>`:''}</td>
+          <td>${f2(p.price)}</td>
+          <td class="${(p.chg||0)>=0?'pos':'neg'}">${p.chg==null?'-':((p.chg>=0?'+':'')+p.chg)}</td>
+          <td><span class="rs ${p.rs>=80?'hi':p.rs<40?'lo':''}">${p.rs??'-'}</span></td>
+          <td>${p.stage?`<span class="tag s${p.stage}">S${p.stage}</span>`:'-'}</td>
+          <td class="l mut">${esc(p.zone||'')}</td>
+          <td>${p.mcap_cr!=null?fx(p.mcap_cr):'-'}</td>
+          <td>${p.pe!=null?fx(p.pe):'-'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+    <p class="note">Same industry from fundamentals data. Sorted by RS, then market cap. Click a row for full analysis.</p>
+  </div>`:'';
+
   pg.innerHTML=`
-  <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span> ${Watchlist.starBtn(s.symbol)}</h1>
-    <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p></div>
-    <div class="row"><a class="btn sm" href="/compare">Compare →</a></div></div>
+  <div class="pagehead">
+    <div>
+      <h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span> ${typeof Watchlist!=='undefined'?Watchlist.starBtn(s.symbol):''}</h1>
+      <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p>
+    </div>
+    <div class="row"><a class="btn sm" href="/compare">Compare →</a></div>
+  </div>
   <div class="card"><div class="stats">
-    ${row('Price','₹'+f2(s.price))}${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
-    ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}${row('RS',s.rs??'-')}
-    ${row('From 52W high',s.from_hi==null?'-':s.from_hi+'%')}${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
+    ${row('Price','₹'+f2(s.price))}
+    ${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
+    ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}
+    ${row('RS',s.rs??'-')}
+    ${row('From 52W high',s.from_hi==null?'-':s.from_hi+'%')}
+    ${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
   </div></div>
   ${s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
   <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
     <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
-  <div class="card"><h2>Fundamentals</h2>${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet.</p>'}
+  <div class="card"><h2>Fundamentals</h2>
+    ${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet.</p>'}
     ${det.about?`<p class="note" style="margin-top:12px">${esc(det.about)}${det.about.length>=420?'…':''}</p>`:''}
-    <p class="note">Source: Yahoo Finance, collected once a day. May be delayed or incomplete.</p></div>
+    <p class="note">Source: Yahoo Finance, collected once a day. May be delayed or incomplete.</p>
+  </div>
   ${(r.member_of||[]).length?`<div class="card"><h2>Part of these indices</h2><div class="toprs">${r.member_of.map(n=>`<a class="chip" href="/index/${encodeURIComponent(n)}">${esc(n)}</a>`).join('')}</div></div>`:''}
-  <div class="card"><h2>  ${(r.peers&&r.peers.length)?`<div class="card"><h2>Peers${r.peers_industry?` · <span class="mut" style="font-weight:400">${esc(r.peers_industry)}</span>`:''}</h2>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">Stock</th><th>Price</th><th>Chg %</th><th>RS</th><th>Stage</th><th>Zone</th><th>Mcap (Cr)</th><th>P/E</th></tr></thead>
-      <tbody>${r.peers.map(p=>`<tr class="clk" data-s="${esc(p.symbol)}">
-        <td class="l"><b>${esc(p.symbol)}</b>${p.name?`<br><small class="mut">${esc(p.name)}</small>`:''}</td>
-        <td>${f2(p.price)}</td>
-        <td class="${(p.chg||0)>=0?'pos':'neg'}">${p.chg==null?'-':((p.chg>=0?'+':'')+p.chg)}</td>
-        <td><span class="rs ${p.rs>=80?'hi':p.rs<40?'lo':''}">${p.rs??'-'}</span></td>
-        <td>${p.stage?`<span class="tag s${p.stage}">S${p.stage}</span>`:'-'}</td>
-        <td class="l mut">${esc(p.zone||'')}</td>
-        <td>${p.mcap_cr!=null?fx(p.mcap_cr):'-'}</td>
-        <td>${p.pe!=null?fx(p.pe):'-'}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>
-    <p class="note">Same industry from fundamentals data. Sorted by RS, then market cap. Click a row for full analysis.</p>
-  </div>`:''}Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
+  ${peersHtml}
+  <div class="card"><h2>Latest news</h2>
+    ${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}
+  </div>
   <div id="mypos"></div>`;
+
   ScopeLadder.bind($('page'));
-    const peersBox = pg.querySelector('.card tbody');
-  // better: bind only peer table
+
   pg.querySelectorAll('tr.clk[data-s]').forEach(tr=>{
     tr.style.cursor='pointer';
     tr.onclick=()=>{ location.href='/stock/'+encodeURIComponent(tr.dataset.s); };
   });
+
   fetch('/api/holdings').then(x=>x.json()).then(h=>{
-    const m=(h.holdings||[]).filter(x=>x.symbol==s.symbol); if(!m.length) return;
+    const m=(h.holdings||[]).filter(x=>x.symbol==s.symbol);
+    if(!m.length) return;
     const q=m.reduce((a,x)=>a+x.qty,0), inv=m.reduce((a,x)=>a+x.qty*x.avg_price,0), val=q*s.price, pl=val-inv;
-    $('mypos').innerHTML=`<div class="card"><h2>Your holding</h2><div class="stats">${row('Quantity',q)}${row('Avg price',f2(inv/q))}${row('Value','₹'+f2(val))}
-      ${row('P&L',`<span class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${f2(pl)} (${(pl/inv*100).toFixed(1)}%)</span>`)}</div><a class="btn sm" href="/portfolio" style="margin-top:10px">Open portfolio →</a></div>`;
+    $('mypos').innerHTML=`<div class="card"><h2>Your holding</h2><div class="stats">
+      ${row('Quantity',q)}${row('Avg price',f2(inv/q))}${row('Value','₹'+f2(val))}
+      ${row('P&L',`<span class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${f2(pl)} (${(pl/inv*100).toFixed(1)}%)</span>`)}
+    </div><a class="btn sm" href="/portfolio" style="margin-top:10px">Open portfolio →</a></div>`;
   });
 }
+
 if(SYM) fetch('/api/detail/'+encodeURIComponent(SYM)).then(r=>r.json()).then(render);
 </script>
 {% endraw %}
