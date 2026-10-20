@@ -36,6 +36,9 @@
     <a href="{{ url_for('backup') }}" data-tip="Download backup"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><span>Backup data</span></a>
     <a href="{{ url_for('logout') }}" data-tip="Logout"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 8l-4 4 4 4M6 12h10"/></svg><span>Logout</span></a>
   </nav>
+  <div id="data-badge" style="padding:8px 10px;margin-top:8px;font-size:11px;color:var(--mut);line-height:1.4;border-top:1px solid var(--stroke)">
+  <span id="data-src">Data …</span>
+</div>
   <button class="collapse" id="collapse" data-tip="Expand / collapse">&#10094;</button>
 </aside>
 <script>
