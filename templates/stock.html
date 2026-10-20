@@ -56,6 +56,7 @@ function render(r){
   const news=(det.news||[]).map(n=>`<a href="${esc(n.u)}" target="_blank" rel="noopener noreferrer" class="newsi"><span>${esc(n.t)}</span><em>${esc(n.s)}${n.s&&n.d?' · ':''}${esc(n.d)}</em></a>`).join('');
   pg.innerHTML=`
   <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span></h1>
+  ${Watchlist.starBtn(s.symbol)}
     <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p></div>
     </div>
   <div class="card"><div class="stats">
