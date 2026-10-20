@@ -195,3 +195,30 @@ window.ScopeLadder = (function () {
     if(d.problem) el.style.color = 'var(--neg)';
   }).catch(()=>{ el.textContent = 'Data unavailable'; });
 })();
+/* ===== Watchlist ===== */
+window.Watchlist = (function(){
+  const KEY = 'scope_watch';
+  function all(){ try { return JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(e){ return []; } }
+  function save(a){ localStorage.setItem(KEY, JSON.stringify(a)); }
+  function has(sym){ return all().includes(String(sym).toUpperCase()); }
+  function toggle(sym){
+    sym = String(sym).toUpperCase();
+    let a = all();
+    if(a.includes(sym)) a = a.filter(x=>x!==sym); else a.unshift(sym);
+    if(a.length > 40) a = a.slice(0,40);
+    save(a);
+    return a.includes(sym);
+  }
+  function starBtn(sym){
+    const on = has(sym);
+    return `<button class="btn sm wl-btn" data-sym="${sym}" title="Watchlist" style="margin-left:8px">${on?'★':'☆'} Watch</button>`;
+  }
+  document.addEventListener('click', function(e){
+    const b = e.target.closest('.wl-btn');
+    if(!b) return;
+    const on = toggle(b.dataset.sym);
+    b.innerHTML = (on?'★':'☆') + ' Watch';
+    toast(on ? 'Added to watchlist' : 'Removed from watchlist');
+  });
+  return { all, has, toggle, starBtn };
+})();
