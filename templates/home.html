@@ -121,3 +121,7 @@ fetch('/api/stocks').then(r=>r.json()).then(d=>{$('gsyms').innerHTML=(d.stocks||
 </script>
 {% endraw %}
 {% endblock %}
+<div class="card" id="watch-card" style="display:none">
+  <h2>Watchlist</h2>
+  <div id="watch-list" class="toprs" style="flex-wrap:wrap;gap:8px"></div>
+</div>
