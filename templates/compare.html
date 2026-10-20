@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead">
+  <div><h1>Compare</h1><p class="sub">Side-by-side levels &amp; stats · data updated {{ updated }}</p></div>
+</div>
+<div class="card">
+  <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center">
+    <input id="a" list="syms" placeholder="Stock A (e.g. RELIANCE)" style="min-width:160px">
+    <input id="b" list="syms" placeholder="Stock B (e.g. TCS)" style="min-width:160px">
+    <button class="btn primary" id="go">Compare</button>
+  </div>
+  <datalist id="syms"></datalist>
+</div>
+<div id="out"></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+fetch('/api/stocks').then(r=>r.json()).then(d=>{
+  $('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('');
+});
+function load(sym){ return fetch('/api/detail/'+encodeURIComponent(sym)).then(r=>r.json()); }
+function card(r){
+  const s=r.stock, det=r.detail||{};
+  if(!s) return `<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">Not found in scanned data.</p></div>`;
+  return `<div class="card">
+    <h2><a href="/stock/${encodeURIComponent(s.symbol)}">${esc(s.symbol)}</a>
+      <span class="mut" style="font-size:14px;font-weight:400">${esc(det.name||'')}</span>
+      ${typeof Watchlist!=='undefined'?Watchlist.starBtn(s.symbol):''}
+    </h2>
+    <div class="stats">
+      <div class="stat"><small>Price</small><b>₹${f2(s.price)}</b></div>
+      <div class="stat"><small>Change</small><b class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</b></div>
+      <div class="stat"><small>Stage</small><b>${s.stage?`<span class="tag s${s.stage}">S${s.stage}</span>`:'New'}</b></div>
+      <div class="stat"><small>RS</small><b><span class="rs ${s.rs>=80?'hi':s.rs<40?'lo':''}">${s.rs??'-'}</span></b></div>
+      <div class="stat"><small>Zone</small><b class="mut">${esc(s.zone||'-')}</b></div>
+      <div class="stat"><small>From 52W high</small><b>${s.from_hi==null?'-':s.from_hi+'%'}</b></div>
+    </div>
+    ${s.point!=null?`<div style="margin-top:14px">${ScopeLadder.html(s)}</div>`:''}
+  </div>`;
+}
+$('go').onclick=async()=>{
+  const A=$('a').value.trim().toUpperCase(), B=$('b').value.trim().toUpperCase();
+  if(!A||!B){ if(window.toast) toast('Enter both symbols'); return; }
+  $('out').innerHTML='<div class="card skel skel-block"></div><div class="card skel skel-block"></div>';
+  try{
+    const [ra,rb]=await Promise.all([load(A),load(B)]);
+    $('out').innerHTML=`<div class="cols3">${card(ra)}${card(rb)}</div>`;
+    if(window.ScopeLadder) ScopeLadder.bind($('out'));
+  }catch(e){
+    $('out').innerHTML='<div class="card"><p class="mut">Could not load data.</p></div>';
+  }
+};
+['a','b'].forEach(id=>{
+  $(id).addEventListener('keydown',e=>{ if(e.key==='Enter') $('go').click(); });
+});
+</script>
+{% endraw %}
+{% endblock %}
