@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="pagehead"><div><h1>Market</h1><p class="sub">Key levels of the indices and stocks near them · data updated {{ updated }}</p></div></div>
-<div class="card"><input id="gs" list="gsyms" placeholder="Search a stock for its full details, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px"><datalist id="gsyms"></datalist></div>
+<div class="card"><input id="gs" list="gsyms" <div class="hero" style="padding:18px 0 8px">
+  <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}?v={{ ver }}"
+       alt="Scope" style="width:120px;height:120px">
+  <b class="wordmark" style="font-size:36px;margin-top:12px;display:block;letter-spacing:.28em;padding-left:.28em">SCOPE</b>
+  <span class="typer" data-text="CHANGE YOUR VISION" style="font-size:11px;letter-spacing:.45em;display:block;margin-top:10px">CHANGE YOUR VISION</span>
+</div>placeholder="Search a stock for its full details, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px"><datalist id="gsyms"></datalist></div>
 
 <div class="card" id="watch-card" style="display:none">
   <h2>Watchlist</h2>
