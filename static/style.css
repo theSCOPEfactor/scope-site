@@ -457,3 +457,39 @@ textarea:focus {
 @keyframes skel { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
 .skel-line { height: 14px; margin: 8px 0; }
 .skel-block { height: 80px; margin-bottom: 12px; }
+/* ===== Extra polish + skeleton + glass ===== */
+main, .side { animation: pageIn .55s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pageIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+
+.card, .tile {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.16);
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), border-color .28s, box-shadow .28s;
+  box-shadow: 0 12px 40px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.card:hover, .tile:hover {
+  transform: translateY(-5px);
+  border-color: rgba(96,165,250,.45);
+  box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 0 28px rgba(96,165,250,.25), 0 0 0 1px rgba(96,165,250,.3), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.menu a.on {
+  background: linear-gradient(135deg, rgba(96,165,250,.32), rgba(167,139,250,.26));
+  box-shadow: 0 0 24px rgba(96,165,250,.35), inset 0 0 0 1px rgba(255,255,255,.15);
+}
+.skel {
+  background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 75%);
+  background-size: 400% 100%;
+  animation: skel 1.2s ease-in-out infinite;
+  border-radius: 10px; color: transparent !important; pointer-events: none;
+}
+@keyframes skel { 0% { background-position:100% 0 } 100% { background-position:-100% 0 } }
+.skel-line { height:14px; margin:8px 0; }
+.skel-block { height:100px; margin-bottom:12px; }
+
+#data-badge { flex-shrink:0; }
+body.mini #data-badge { display:none; }
+
+@media (prefers-reduced-motion:reduce) {
+  main, .side { animation:none !important; }
+  .card:hover, .tile:hover { transform:none; }
+}
