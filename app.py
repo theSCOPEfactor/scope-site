@@ -229,10 +229,51 @@ def api_detail(sym):
     sym = _norm_sym(sym)
     d, det = get_data(), get_details()
     stock = next((s for s in d["stocks"] if s["symbol"] == sym), None)
+    detail = det.get("stocks", {}).get(sym) or {}
     member = [v["label"] for k, v in {x["label"]: x for x in det.get("indices", {}).values()}.items() if sym in v["symbols"]]
-    return jsonify({"symbol": sym, "stock": stock, "detail": det.get("stocks", {}).get(sym),
-                    "member_of": member, "details_updated": det.get("updated"), "updated": d.get("updated")})
 
+    # Peers = same industry (from details), ranked by RS then market cap
+    peers = []
+    ind = (detail.get("industry") or detail.get("y_industry") or "").strip()
+    if ind:
+        by_sym = {s["symbol"]: s for s in d.get("stocks", [])}
+        cand = []
+        for psym, pdet in (det.get("stocks") or {}).items():
+            if psym == sym:
+                continue
+            pind = (pdet.get("industry") or pdet.get("y_industry") or "").strip()
+            if pind != ind:
+                continue
+            row = by_sym.get(psym)
+            if not row:
+                continue
+            cand.append({
+                "symbol": psym,
+                "name": pdet.get("name"),
+                "price": row.get("price"),
+                "chg": row.get("chg"),
+                "rs": row.get("rs"),
+                "stage": row.get("stage"),
+                "zone": row.get("zone"),
+                "mcap_cr": pdet.get("mcap_cr"),
+                "pe": pdet.get("pe"),
+            })
+        cand.sort(key=lambda x: (
+            -(x["rs"] if x["rs"] is not None else -1),
+            -(x["mcap_cr"] if x["mcap_cr"] is not None else -1),
+        ))
+        peers = cand[:12]
+
+    return jsonify({
+        "symbol": sym,
+        "stock": stock,
+        "detail": detail,
+        "member_of": member,
+        "peers": peers,
+        "peers_industry": ind or None,
+        "details_updated": det.get("updated"),
+        "updated": d.get("updated"),
+    })
 
 @app.route("/api/index")
 def api_index():
