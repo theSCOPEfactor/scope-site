@@ -183,3 +183,15 @@ window.ScopeLadder = (function () {
   }
   return {levelsOf: levelsOf, html: html, bind: bind};
 })();
+/* data source badge */
+(function(){
+  const el = document.getElementById('data-src');
+  if(!el) return;
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    const src = d.source || '—';
+    const up = d.updated || '—';
+    const problem = d.problem ? ' ⚠' : '';
+    el.textContent = src + ' · ' + up + problem;
+    if(d.problem) el.style.color = 'var(--neg)';
+  }).catch(()=>{ el.textContent = 'Data unavailable'; });
+})();
