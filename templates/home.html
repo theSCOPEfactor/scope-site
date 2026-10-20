@@ -1,12 +1,23 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="pagehead"><div><h1>Market</h1><p class="sub">Key levels of the indices and stocks near them · data updated {{ updated }}</p></div></div>
-<div class="card"><input id="gs" list="gsyms" <div class="hero" style="padding:18px 0 8px">
+<div class="pagehead">
+  <div>
+    <h1>Market</h1>
+    <p class="sub">Key levels of the indices and stocks near them · data updated {{ updated }}</p>
+  </div>
+</div>
+
+<div class="hero" style="padding:18px 0 8px;text-align:center">
   <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}?v={{ ver }}"
        alt="Scope" style="width:120px;height:120px">
   <b class="wordmark" style="font-size:36px;margin-top:12px;display:block;letter-spacing:.28em;padding-left:.28em">SCOPE</b>
   <span class="typer" data-text="CHANGE YOUR VISION" style="font-size:11px;letter-spacing:.45em;display:block;margin-top:10px">CHANGE YOUR VISION</span>
-</div>placeholder="Search a stock for its full details, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px"><datalist id="gsyms"></datalist></div>
+</div>
+
+<div class="card">
+  <input id="gs" list="gsyms" placeholder="Search a stock for its full details, e.g. RELIANCE" autocomplete="off" style="width:100%;font-size:16px">
+  <datalist id="gsyms"></datalist>
+</div>
 
 <div class="card" id="watch-card" style="display:none">
   <h2>Watchlist</h2>
@@ -18,10 +29,13 @@
     <h2 style="margin:0">Indices</h2>
     <div class="seg2" id="mode"><button data-m="day" class="on">Today</button><button data-m="w52">52 Week</button></div>
   </div>
-  <div class="wrap"><table><thead><tr><th class="l">Index</th><th>Price</th><th>Chg %</th><th>VLOW</th><th id="mgh"></th><th>VHIGH</th><th>Range</th></tr></thead>
-  <tbody id="idx"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table></div>
+  <div class="wrap"><table>
+    <thead><tr><th class="l">Index</th><th>Price</th><th>Chg %</th><th>VLOW</th><th id="mgh"></th><th>VHIGH</th><th>Range</th></tr></thead>
+    <tbody id="idx"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+  </table></div>
   <p class="note" id="idxnote">Click an index for analysis and its stocks. Today = levels of today’s session. Index levels are based on time spent at each price, because indices have no traded volume.</p>
 </div>
+
 <div class="card">
   <div class="row" style="justify-content:space-between;margin-bottom:6px">
     <h2 style="margin:0">Market health</h2>
@@ -34,18 +48,26 @@
     <span><span class="dot" style="background:#a78bfa"></span>Above 200 DMA</span>
   </div>
 </div>
+
 <div class="card">
-  <div class="row" style="justify-content:space-between"><h2 style="margin:0">Fresh base breakouts</h2><a class="btn sm" href="{{ url_for('stage2') }}?view=base">See all →</a></div>
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">Fresh base breakouts</h2>
+    <a class="btn sm" href="{{ url_for('stage2') }}?view=base">See all →</a>
+  </div>
   <p class="note" style="margin:4px 0 8px">Moved from a base (Stage 1) into Stage 2 in the last 10 days, with volume at least 1.5× normal.</p>
   <div class="toprs" id="bo"><span class="mut">Loading…</span></div>
 </div>
+
 <div class="card">
   <div class="row" style="justify-content:space-between;margin-bottom:6px">
     <h2 style="margin:0">Stocks near their 52-week levels</h2>
     <div class="row">
       <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Within
-        <select id="pct"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select></label>
-      <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Min avg volume<input id="mv" type="number" value="100000" style="width:110px"></label>
+        <select id="pct"><option value="1">1%</option><option value="2" selected>2%</option><option value="3">3%</option><option value="5">5%</option></select>
+      </label>
+      <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Min avg volume
+        <input id="mv" type="number" value="100000" style="width:110px">
+      </label>
       <label class="fld chk"><input id="s2" type="checkbox"> Stage 2 only</label>
     </div>
   </div>
@@ -57,6 +79,7 @@
   <p class="note">Closest first. Click a stock to open its price ladder.</p>
 </div>
 {% endblock %}
+
 {% block scripts %}
 {% raw %}
 <script>
@@ -65,14 +88,15 @@ const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:
 let D={stocks:[],indices:[]}, mode='day';
 $('mgh').innerHTML=MAGNET(18);
 $('h_mg').innerHTML=MAGNET(18)+' <span style="vertical-align:4px;margin-left:4px">Near the magnet</span> <span class="mut" id="c_mg"></span>';
+
 function drawIdx(){
   $('idx').innerHTML=D.indices.map(x=>{
     const l=x[mode];
     if(!l) return `<tr class="idx" data-n="${x.symbol}"><td class="l"><b>${x.symbol}</b> <span class="mut">›</span></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td><td colspan="4" class="mut">no data</td></tr>`;
     const p=l.vhigh>l.vlow?Math.max(-4,Math.min(104,(x.price-l.vlow)/(l.vhigh-l.vlow)*100)):50;
     return `<tr class="idx" data-n="${x.symbol}"><td class="l"><b>${x.symbol}</b> <span class="mut">›</span></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg>=0?'+':''}${x.chg}</td>
-      <td>${f2(l.vlow)}</td><td>${f2(l.point)}</td><td>${f2(l.vhigh)}</td><td><span class="rb"><i style="left:${p}%"></i></span></td></tr>`}).join('')
-    ||'<tr><td colspan="7" class="empty">Index levels appear after the next daily update.</td></tr>';
+      <td>${f2(l.vlow)}</td><td>${f2(l.point)}</td><td>${f2(l.vhigh)}</td><td><span class="rb"><i style="left:${p}%"></i></span></td></tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">Index levels appear after the next daily update.</td></tr>';
   $('idxnote').textContent=mode=='day'
     ?'Click an index for analysis and its stocks. Today = levels of today’s session. Index levels are based on time spent at each price, because indices have no traded volume.'
     :'52 Week = levels built from the last year of trading.';
@@ -80,6 +104,7 @@ function drawIdx(){
 $('idx').onclick=e=>{const tr=e.target.closest('tr[data-n]'); if(tr) location.href='/index/'+encodeURIComponent(tr.dataset.n)};
 $('mode').onclick=e=>{const b=e.target.closest('button'); if(!b) return; mode=b.dataset.m;
   [...$('mode').children].forEach(x=>x.classList.toggle('on',x===b)); drawIdx()};
+
 function near(){
   const t=+$('pct').value/100, mv=+$('mv').value||0, s2=$('s2').checked;
   const S=D.stocks.filter(x=>x.point!=null&&x.avg_vol>=mv&&(!s2||x.stage==2));
@@ -91,6 +116,7 @@ function near(){
   };
   list('vlow','n_lo','c_lo'); list('point','n_mg','c_mg'); list('vhigh','n_hi','c_hi');
 }
+
 function breadth(){
   const B=D.breadth||[], el=$('bchart');
   if(B.length<2){ $('bstats').innerHTML='<span class="mut">Appears after the next daily update.</span>'; el.innerHTML=''; return }
@@ -98,27 +124,32 @@ function breadth(){
   $('bstats').innerHTML=[['In Stage 2',L.s2],['Above 200 DMA',L.a200],['Above 50 DMA',L.a50]].map(x=>`<div class="stat"><small>${x[0]}</small><b>${x[1].toFixed(1)}%</b></div>`).join('');
   const W=900,H=220,l=34,r=64,t=10,b=22, X=i=>l+i/(B.length-1)*(W-l-r), Y=v=>t+(1-v/100)*(H-t-b);
   const path=k=>B.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p[k]).toFixed(1)).join('');
-  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Market breadth over time">`;
+  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Market breadth">`;
   [0,25,50,75,100].forEach(v=>g+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${l-6}" y="${Y(v)+4}" text-anchor="end" fill="#97a3c4" font-size="11">${v}%</text>`);
   [['s2','#2dd4bf'],['a200','#a78bfa']].forEach(([k,c])=>{
     g+=`<path d="${path(k)}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
         <circle cx="${X(B.length-1)}" cy="${Y(L[k])}" r="4" fill="${c}" stroke="#0a1226" stroke-width="2"/>
-        <text x="${X(B.length-1)+9}" y="${Y(L[k])+4}" fill="#eaf0ff" font-size="12" font-weight="600">${L[k].toFixed(0)}%</text>`});
+        <text x="${X(B.length-1)+9}" y="${Y(L[k])+4}" fill="#eaf0ff" font-size="12" font-weight="600">${L[k].toFixed(0)}%</text>`;
+  });
   g+=`<text x="${l}" y="${H-5}" fill="#97a3c4" font-size="11">${B[0].d}</text><text x="${W-r}" y="${H-5}" text-anchor="end" fill="#97a3c4" font-size="11">${L.d}</text>
     <line id="cx" y1="${t}" y2="${H-b}" stroke="rgba(255,255,255,.35)" style="display:none"/></svg><div id="tip" class="tip" style="display:none"></div>`;
   el.innerHTML=g;
   const svg=el.querySelector('svg'), cx=$('cx'), tip=$('tip');
-  svg.onmousemove=e=>{const bb=svg.getBoundingClientRect(), x=(e.clientX-bb.left)/bb.width*W;
+  svg.onmousemove=e=>{
+    const bb=svg.getBoundingClientRect(), x=(e.clientX-bb.left)/bb.width*W;
     const i=Math.max(0,Math.min(B.length-1,Math.round((x-l)/(W-l-r)*(B.length-1)))), p=B[i];
-    cx.style.display='';cx.setAttribute('x1',X(i));cx.setAttribute('x2',X(i));
-    tip.style.display='block';tip.style.left=Math.min(bb.width-170,Math.max(0,X(i)/W*bb.width+12))+'px';tip.style.top='6px';
-    tip.innerHTML=`<b>${p.d}</b><br><span style="color:#2dd4bf">●</span> Stage 2 ${p.s2}%<br><span style="color:#a78bfa">●</span> Above 200 DMA ${p.a200}%<br><span class="mut">Above 50 DMA ${p.a50}%</span>`};
-  svg.onmouseleave=()=>{cx.style.display='none';tip.style.display='none'};
+    cx.style.display=''; cx.setAttribute('x1',X(i)); cx.setAttribute('x2',X(i));
+    tip.style.display='block'; tip.style.left=Math.min(bb.width-170,Math.max(0,X(i)/W*bb.width+12))+'px'; tip.style.top='6px';
+    tip.innerHTML=`<b>${p.d}</b><br><span style="color:#2dd4bf">●</span> Stage 2 ${p.s2}%<br><span style="color:#a78bfa">●</span> Above 200 DMA ${p.a200}%<br><span class="mut">Above 50 DMA ${p.a50}%</span>`;
+  };
+  svg.onmouseleave=()=>{cx.style.display='none'; tip.style.display='none'};
 }
+
 function baseBo(){
   const L=D.stocks.filter(x=>x.base_bo).sort((a,b)=>(b.vol_x||0)-(a.vol_x||0)).slice(0,16);
   $('bo').innerHTML=L.length?L.map(x=>`<a class="chip" href="/levels?s=${x.symbol}">${x.symbol} <b class="pos">${x.vol_x}×</b></a>`).join(''):'<span class="mut">None right now.</span>';
 }
+
 function drawWatch(){
   if(typeof Watchlist==='undefined') return;
   const wl=Watchlist.all(), box=$('watch-card'), list=$('watch-list');
@@ -127,9 +158,11 @@ function drawWatch(){
   box.style.display='';
   list.innerHTML=wl.map(s=>`<a class="chip" href="/stock/${encodeURIComponent(s)}">${s}</a>`).join('');
 }
+
 ['pct','mv','s2'].forEach(i=>$(i).oninput=near);
 $('gs').addEventListener('change',()=>{const v=$('gs').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)});
 $('gs').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('gs').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
+
 fetch('/api/stocks').then(r=>r.json()).then(d=>{
   $('gsyms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('');
   D.stocks=d.stocks||[]; D.indices=d.indices||[]; D.breadth=d.breadth||[];
