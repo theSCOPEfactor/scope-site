@@ -6,7 +6,6 @@
 </div>
 <div id="page"></div>{% endraw %}
 {% endblock %}
-
 {% block scripts %}
 <script>const SYM="{{ sym }}";</script>
 {% raw %}
@@ -16,11 +15,9 @@ const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:
 const fx=(n,u='')=>n==null?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})+u;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ZC={'Above VHIGH':'z-up','Near VHIGH (sell zone)':'z-hi','Inside range':'','Near VLOW (buy zone)':'z-lo','Below VLOW':'z-dn'};
-
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=(d.stocks||[]).map(x=>`<option value="${x.symbol}">`).join('')});
 $('q').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)}});
 $('q').addEventListener('change',()=>{const v=$('q').value.trim().toUpperCase(); if(v) location.href='/stock/'+encodeURIComponent(v)});
-
 function summary(s){
   const out=[], R=s.vhigh-s.vlow;
   const st={2:'Advancing (Stage 2): price is above its 50, 150 and 200 day averages and the long-term trend is rising.',
@@ -31,7 +28,7 @@ function summary(s){
   if(s.stage==2) out.push(s.days_s2<=10?`Fresh Stage 2: only ${s.days_s2} day${s.days_s2==1?'':'s'} in Stage 2 so far.`:`${s.days_s2} days in Stage 2.`);
   if(s.rs!=null) out.push(s.rs>=80?`Relative strength ${s.rs}: among the market leaders.`:s.rs>=50?`Relative strength ${s.rs}: better than half of the market.`:`Relative strength ${s.rs}: weaker than most stocks.`);
   if(s.point!=null){
-    const pos=R>0?(s.price-s.vlow)/R:.5, dm=(s.price/s.point-1)*100;
+    const dm=(s.price/s.point-1)*100;
     out.push(s.zone?`Price zone: ${ZONENAME(s.zone).toLowerCase()}.`:'');
     out.push(`Price is ${Math.abs(dm).toFixed(1)}% ${dm>=0?'above':'below'} the magnet level, ${((s.vhigh/s.price-1)*100).toFixed(1)}% from VHIGH and ${((s.price/s.vlow-1)*100).toFixed(1)}% from VLOW.`);
   }
@@ -43,7 +40,6 @@ function nextLevels(s){
   return {up,dn};
 }
 const row=(k,v)=>`<div class="stat"><small>${k}</small><b>${v}</b></div>`;
-
 function render(r){
   const s=r.stock, det=r.detail||{}, pg=$('page');
   if(!s){pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the scanned data yet. Check the spelling, or it may be a very new listing that appears after the next daily update.</p></div>`;return}
@@ -55,10 +51,9 @@ function render(r){
   const hasF=det.pe!=null||det.mcap_cr!=null||det.roe!=null;
   const news=(det.news||[]).map(n=>`<a href="${esc(n.u)}" target="_blank" rel="noopener noreferrer" class="newsi"><span>${esc(n.t)}</span><em>${esc(n.s)}${n.s&&n.d?' · ':''}${esc(n.d)}</em></a>`).join('');
   pg.innerHTML=`
-  <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span></h1>
-  ${Watchlist.starBtn(s.symbol)}
+  <div class="pagehead"><div><h1>${esc(s.symbol)} <span class="mut" style="font-size:15px;font-weight:400">${esc(det.name||'')}</span> ${Watchlist.starBtn(s.symbol)}</h1>
     <p class="sub">${esc(det.industry||det.y_industry||'')} · data updated ${esc(r.updated)}</p></div>
-    </div>
+    <div class="row"><a class="btn sm" href="/compare">Compare →</a></div></div>
   <div class="card"><div class="stats">
     ${row('Price','₹'+f2(s.price))}${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
     ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}${row('RS',s.rs??'-')}
@@ -67,11 +62,11 @@ function render(r){
   ${s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
   <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
     <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
-  <div class="card"><h2>Fundamentals</h2>${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet. They are added by the daily details update, for the larger listed companies.</p>'}
+  <div class="card"><h2>Fundamentals</h2>${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet.</p>'}
     ${det.about?`<p class="note" style="margin-top:12px">${esc(det.about)}${det.about.length>=420?'…':''}</p>`:''}
     <p class="note">Source: Yahoo Finance, collected once a day. May be delayed or incomplete.</p></div>
   ${(r.member_of||[]).length?`<div class="card"><h2>Part of these indices</h2><div class="toprs">${r.member_of.map(n=>`<a class="chip" href="/index/${encodeURIComponent(n)}">${esc(n)}</a>`).join('')}</div></div>`:''}
-  <div class="card"><h2>Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News, opened from their own websites. Scope does not write or check them.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
+  <div class="card"><h2>Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
   <div id="mypos"></div>`;
   ScopeLadder.bind($('page'));
   fetch('/api/holdings').then(x=>x.json()).then(h=>{
