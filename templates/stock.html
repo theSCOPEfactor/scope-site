@@ -66,7 +66,22 @@ function render(r){
     ${det.about?`<p class="note" style="margin-top:12px">${esc(det.about)}${det.about.length>=420?'…':''}</p>`:''}
     <p class="note">Source: Yahoo Finance, collected once a day. May be delayed or incomplete.</p></div>
   ${(r.member_of||[]).length?`<div class="card"><h2>Part of these indices</h2><div class="toprs">${r.member_of.map(n=>`<a class="chip" href="/index/${encodeURIComponent(n)}">${esc(n)}</a>`).join('')}</div></div>`:''}
-  <div class="card"><h2>Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
+  <div class="card"><h2>  ${(r.peers&&r.peers.length)?`<div class="card"><h2>Peers${r.peers_industry?` · <span class="mut" style="font-weight:400">${esc(r.peers_industry)}</span>`:''}</h2>
+    <div class="wrap"><table>
+      <thead><tr><th class="l">Stock</th><th>Price</th><th>Chg %</th><th>RS</th><th>Stage</th><th>Zone</th><th>Mcap (Cr)</th><th>P/E</th></tr></thead>
+      <tbody>${r.peers.map(p=>`<tr class="clk" data-s="${esc(p.symbol)}">
+        <td class="l"><b>${esc(p.symbol)}</b>${p.name?`<br><small class="mut">${esc(p.name)}</small>`:''}</td>
+        <td>${f2(p.price)}</td>
+        <td class="${(p.chg||0)>=0?'pos':'neg'}">${p.chg==null?'-':((p.chg>=0?'+':'')+p.chg)}</td>
+        <td><span class="rs ${p.rs>=80?'hi':p.rs<40?'lo':''}">${p.rs??'-'}</span></td>
+        <td>${p.stage?`<span class="tag s${p.stage}">S${p.stage}</span>`:'-'}</td>
+        <td class="l mut">${esc(p.zone||'')}</td>
+        <td>${p.mcap_cr!=null?fx(p.mcap_cr):'-'}</td>
+        <td>${p.pe!=null?fx(p.pe):'-'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <p class="note">Same industry from fundamentals data. Sorted by RS, then market cap. Click a row for full analysis.</p>
+  </div>`:''}Latest news</h2>${news?`<div class="newsl">${news}</div><p class="note">Headlines from Google News.</p>`:'<p class="mut">No news collected yet.</p>'}</div>
   <div id="mypos"></div>`;
   ScopeLadder.bind($('page'));
   fetch('/api/holdings').then(x=>x.json()).then(h=>{
