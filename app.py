@@ -617,7 +617,9 @@ def api_import():
             created += 1
     con.commit()
     return jsonify(ok=True, created=created)
-
+@app.route("/compare")
+def compare():
+    return render_template("compare.html", active="compare", updated=get_data()["updated"])
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
