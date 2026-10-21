@@ -6,7 +6,7 @@
     <div class="fld"><small class="mut" style="display:block;margin-bottom:4px">Index</small><div class="seg" id="ix"></div></div>
     <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">VLOW</small><input id="v0" type="number" step="any" style="width:130px"></label>
     <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">VHIGH</small><input id="v1" type="number" step="any" style="width:130px"></label>
-    <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">Point (POC)</small><input id="pc" type="number" step="any" style="width:130px"></label>
+    <label class="fld"><small class="mut" style="display:block;margin-bottom:4px" id="ptl">&nbsp;</small><input id="pc" type="number" step="any" style="width:130px"></label>
     <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">Open price</small><input id="op" type="number" step="any" style="width:130px"></label>
   </div>
   <p class="note" id="auto"></p>
@@ -21,6 +21,9 @@ const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:
 // ratio internally j vaprai che, screen par kyay dekhatu nathi
 const LV=[[1.272,'Extension'],[1,'VHIGH · Breakout'],[0.75,'Upper reversal'],[0.25,'Lower reversal'],[0,'VLOW · Break down'],[-0.272,'Deep reversal 1'],[-0.618,'Deep reversal 2']];
 const KN=n=>n.split(' · ')[0];   // stats ma vaprata naam
+const DNAME={'Extension':'t1','Upper reversal':'sr','Lower reversal':'br','Deep reversal 1':'d1','Deep reversal 2':'d2'};
+function disp(t){ let o=String(t); Object.keys(DNAME).forEach(k=>{o=o.split(k).join(LVNAME(DNAME[k]))}); return o.split('Point').join(MAGNET(14)); }
+$('ptl').innerHTML=MAGNET(15);
 const sg=x=>(x>=0?'+':'')+x;
 const pc=x=>`<span class="${x>=0?'pos':'neg'}">${sg(x)}%</span>`;
 let Z=null, cur=null;
@@ -35,20 +38,15 @@ function calc(){
   const nu=items.filter(i=>i.p>op).slice(-1)[0], nd=items.filter(i=>i.p<=op)[0];
   const hasPt=!isNaN(pcv);
   const key=nd?(nu?KN(nd.n)+' to '+KN(nu.n):'Above '+KN(nd.n)):'Below '+KN(nu.n);
-  const rows=[]; let placed=false;
-  items.forEach(l=>{
-    if(!placed && l.p<=op){ rows.push(openRow(op)); placed=true }
-    const tag=(nu&&l===nu)?'nazik upar':(nd&&l===nd)?'nazik niche':'';
-    rows.push(`<tr class="${tag?'hl':''}"><td class="l"><b>${l.magnet?MAGNET(15)+' Point':l.n}</b></td><td>${f2(l.p)}</td><td class="${l.p>=op?'pos':'neg'}">${(l.p>=op?'+':'')+(l.p-op).toFixed(2)}</td><td><small class="mut">${tag}</small></td></tr>`);
-  });
-  if(!placed) rows.push(openRow(op));
+  const S={price:op,vlow:v0,vhigh:v1,point:hasPt?pcv:undefined,fib:{target1:v0+rng*1.272,sell_reversal:v0+rng*.75,buy_reversal:v0+rng*.25}};
+  const lvl=x=>x?(x.magnet?MAGNET(15):disp(KN(x.n)))+' <b>'+f2(x.p)+'</b> <span class="mut">('+((x.p/op-1)*100).toFixed(1)+'%)</span>':'-';
   let zhtml='<p class="mut">Index no data haji nathi (Scope Open Zone job run karo).</p>';
   const E=Z.indices[cur];
   if(E){
     const z=(hasPt?E.zones:(E.zones_np||E.zones))[key], b=E.base;
-    const nUp=nu?KN(nu.n):'-', nDn=nd?KN(nd.n):'-';
+    const nUp=nu?disp(KN(nu.n)):'-', nDn=nd?disp(KN(nd.n)):'-';
     if(z && z.n){
-      zhtml=`<div class="row" style="justify-content:space-between"><h3 style="margin:0">Open aa jagya e: ${z.label.replace('VHIGH','VHIGH').replace('VLOW','VLOW')}</h3><span class="mut">${z.n} divas · ${E.from} thi ${E.to}</span></div>
+      zhtml=`<div class="row" style="justify-content:space-between"><h3 style="margin:0">Open aa jagya e: ${disp(z.label)}</h3><span class="mut">${z.n} divas · ${E.from} thi ${E.to}</span></div>
       <div class="wrap" style="margin-top:10px"><table><thead><tr><th class="l">Open pachhi</th><th>Aa jagya e</th><th>Badha divas</th></tr></thead><tbody>
         <tr><td class="l">Pehla nazik <b>upar</b> level (${nUp}) aavyu</td><td><b>${z.first_up}%</b></td><td class="mut">-</td></tr>
         <tr><td class="l">Pehla nazik <b>niche</b> level (${nDn}) aavyu</td><td><b>${z.first_dn}%</b></td><td class="mut">-</td></tr>
@@ -64,14 +62,13 @@ function calc(){
       <div class="wrap"><table><thead><tr><th class="l">Date</th><th>Open</th><th>Gap</th><th>High</th><th>Low</th><th>Close</th><th>Pehla</th></tr></thead><tbody>
       ${z.recent.map(d=>`<tr><td class="l">${d.date}</td><td>${f2(d.open)}</td><td>${pc(d.gap)}</td><td>${pc(d.up)}</td><td>${pc(d.dn)}</td><td>${pc(d.cl)}</td><td>${{up:'upar',dn:'niche',both:'banne',none:'kai nahi'}[d.first]}</td></tr>`).join('')}
       </tbody></table></div>`;
-    } else zhtml=`<p class="mut">Aa jagya (${key}) e history ma ek pan divas nathi.</p>`;
+    } else zhtml=`<p class="mut">Aa jagya (${disp(key)}) e history ma ek pan divas nathi.</p>`;
   }
-  $('out').innerHTML=`<div class="card"><h3 style="margin:0 0 8px">Levels · open ${f2(op)}</h3>
-    <div class="wrap"><table><thead><tr><th class="l">Level</th><th>Price</th><th>Open thi</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>
+  $('out').innerHTML=`<div class="card"><h2>Open ${f2(op)}</h2>${ScopeLadder.html(S)}<div class="stats" style="margin-top:14px"><div class="stat"><small>Next level above</small><b>${lvl(nu)}</b></div><div class="stat"><small>Next level below</small><b>${lvl(nd)}</b></div></div></div>
     <div class="card">${zhtml}
     <p class="note"><b>Vanchvu:</b> aa past na aankda chhe (levels aa site na profile thi). "Badha divas" column baseline chhe: aa jagya ni numbers e baseline karta alag hoy to j kai matlab. Divas ochha hoy to aankda bharosa layak nathi. Aa prediction nathi.</p></div>`;
+  ScopeLadder.bind($('out'));
 }
-function openRow(op){return `<tr class="open"><td class="l"><b>OPEN</b></td><td><b>${f2(op)}</b></td><td>0</td><td></td></tr>`}
 
 function setIndex(name){
   cur=name; [...$('ix').children].forEach(b=>b.classList.toggle('on',b.dataset.n===name));

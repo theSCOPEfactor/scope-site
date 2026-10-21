@@ -50,12 +50,24 @@ function hist(h){
 function render(r){
   const s=r.stock, det=r.detail||{}, pg=$('page');
   if(!s){
-    pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the scanned data yet. Check the spelling, or it may be a very new listing that appears after the next daily update.</p></div>`;
+    pg.innerHTML=`<div class="card"><h2>${esc(r.symbol)}</h2><p class="mut">This symbol is not in the data yet. Check the spelling. If it is a brand-new listing (IPO), add its symbol to <b>watch.txt</b> on GitHub (one per line); within about 15 minutes of market hours it appears here with live price and intraday levels.</p></div>`;
     return;
   }
   $('search').style.display='none';
-  const nl=s.point!=null?nextLevels(s):{};
   const lv=x=>x?(x[2]?MAGNET(15):esc(x[0]))+' <b>'+f2(x[1])+'</b> <span class="mut">('+((x[1]/s.price-1)*100).toFixed(1)+'%)</span>':'-';
+  const isNew=(s.bars!=null&&s.bars<20)||(s.live&&s.point==null);
+  const I=s.intra, mkI=I?(()=>{const R=I.vhigh-I.vlow;return {price:s.price,vlow:I.vlow,vhigh:I.vhigh,point:I.point,fib:{target1:I.vlow+R*1.272,sell_reversal:I.vlow+R*.75,buy_reversal:I.vlow+R*.25}}})():null;
+  const nl=isNew?(mkI?nextLevels(mkI):{}):(s.point!=null?nextLevels(s):{});
+  const L=s.listing;
+  const newCard=isNew?`<div class="card"><h2>New listing</h2><div class="stats">
+    ${row('Listed on',L?esc(L.date):'-')}${row('Listing-day open','₹'+f2(L?L.open:null))}
+    ${row('Since listing open',L?`<span class="${L.vs_open>=0?'pos':'neg'}">${L.vs_open>=0?'+':''}${L.vs_open}%</span>`:'-')}
+    ${row('High since listing','₹'+f2(L?L.high:null))}${row('Low since listing','₹'+f2(L?L.low:null))}
+    ${row('Days traded',s.bars??'-')}
+  </div><p class="note">This stock is too new for 52-week levels, Stage or RS, so none are calculated. ${s.live_ts?'Live data as of '+esc(String(s.live_ts).slice(0,16))+' (refreshed about every 15 minutes in market hours).':''}</p></div>`:'';
+  const lvlCard=isNew
+    ?(mkI?`<div class="card"><h2>Intraday levels <span class="mut" style="font-size:13px;font-weight:400">· ${esc(I.date)} session only</span></h2>${ScopeLadder.html(mkI)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div><p class="note">Made from today's candles only, so use them for intraday, not for longer decisions.</p></div>`:'')
+    :(s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:'');
   const fund=[
     ['Market cap',det.mcap_cr!=null?'₹'+fx(det.mcap_cr)+' Cr':'-'],['P/E',fx(det.pe)],['P/B',fx(det.pb)],['ROE',fx(det.roe,'%')],['Debt / Equity',fx(det.de)],
     ['Dividend yield',fx(det.div_yield,'%')],['EPS (₹)',fx(det.eps)],['Revenue growth',fx(det.rev_growth,'%')],['Earnings growth',fx(det.earn_growth,'%')],['Profit margin',fx(det.margin,'%')],['Insider holding',fx(det.insiders,'%')]
@@ -102,10 +114,11 @@ function render(r){
     ${row('From 52W high',s.from_hi==null?'-':s.from_hi+'%')}
     ${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
   </div></div>
-  ${s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
-  ${hist(r.history)}
-  <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
-    <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
+  ${newCard}
+  ${lvlCard}
+  ${isNew?'':hist(r.history)}
+  ${isNew?'':`<div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+    <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>`}
   <div class="card"><h2>Fundamentals</h2>
     ${hasF?`<div class="stats">${fund.map(x=>row(x[0],x[1])).join('')}</div>`:'<p class="mut">Fundamentals are not available for this stock yet.</p>'}
     ${det.about?`<p class="note" style="margin-top:12px">${esc(det.about)}${det.about.length>=420?'…':''}</p>`:''}

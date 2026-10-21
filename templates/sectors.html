@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Sectors</h1><p class="sub">Which industries are strongest · data updated {{ updated }}</p></div></div>
+
+<div class="card">
+  <div class="filters">
+    <label class="fld">Min avg volume<input id="mv" type="number" value="100000"></label>
+    <label class="fld">Min stocks in industry<input id="mn" type="number" value="3"></label>
+  </div>
+  <div class="mut" id="count" style="margin-bottom:6px"></div>
+  <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="note">Sorted by average RS. “% Stage 2” is the share of the industry’s stocks that are in Stage 2. Click an industry to see its Stage 2 stocks, strongest RS first.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+let ALL=[], G=[], sortK='rs', sortD=-1, open=null;
+const cols=[['name','Industry','l'],['n','Stocks'],['rs','Avg RS'],['s2','In Stage 2'],['p2','% Stage 2'],['chg','Avg chg %']];
+$('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
+$('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k){sortD=sortK==k?-sortD:-1; sortK=k; draw()}};
+function build(){
+  const mv=+$('mv').value||0, mn=+$('mn').value||1, m={};
+  ALL.filter(x=>x.industry&&x.avg_vol>=mv).forEach(x=>{(m[x.industry]=m[x.industry]||[]).push(x)});
+  G=Object.entries(m).filter(([k,v])=>v.length>=mn).map(([k,v])=>{
+    const r=v.filter(x=>x.rs!=null), s2=v.filter(x=>x.stage==2);
+    return {name:k,n:v.length,rs:r.length?r.reduce((a,x)=>a+x.rs,0)/r.length:null,s2:s2.length,p2:s2.length/v.length*100,
+      chg:v.reduce((a,x)=>a+(x.chg||0),0)/v.length,stocks:v}});
+  draw();
+}
+function draw(){
+  G.sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18; return sortK=='name'?(a.name<b.name?-1:1)*-sortD:(A>B?1:A<B?-1:0)*sortD});
+  $('count').textContent=G.length+' industries';
+  if(!G.length){$('rows').innerHTML='<tr><td colspan="6" class="empty">No industry data yet. It is added by the next daily update (see note below the table if it stays empty).</td></tr>';return}
+  $('rows').innerHTML=G.map(g=>{
+    const top=g.stocks.filter(x=>x.stage==2).sort((a,b)=>(b.rs||0)-(a.rs||0)).slice(0,20);
+    return `<tr class="clk" data-n="${g.name.replace(/"/g,'&quot;')}"><td class="l"><b>${g.name}</b></td><td>${g.n}</td>
+      <td><span class="rs ${g.rs>=60?'hi':g.rs<40?'lo':''}">${g.rs==null?'-':g.rs.toFixed(0)}</span></td><td>${g.s2}</td>
+      <td><span class="rb" style="width:70px"><i style="left:${Math.min(100,g.p2)}%"></i></span> ${g.p2.toFixed(0)}%</td>
+      <td class="${g.chg>=0?'pos':'neg'}">${g.chg>=0?'+':''}${g.chg.toFixed(2)}</td></tr>`
+      +(open===g.name?`<tr><td colspan="6" class="l"><div class="toprs">${top.length?top.map(x=>`<a class="chip" href="/levels?s=${x.symbol}">${x.symbol} <b class="pos">${x.rs??'-'}</b></a>`).join(''):'<span class="mut">No Stage 2 stocks in this industry right now.</span>'}</div></td></tr>`:'');
+  }).join('');
+}
+$('rows').onclick=e=>{const tr=e.target.closest('tr[data-n]'); if(!tr) return; open=open===tr.dataset.n?null:tr.dataset.n; draw()};
+['mv','mn'].forEach(i=>$(i).oninput=build);
+fetch('/api/stocks').then(r=>r.json()).then(d=>{ALL=d.stocks||[]; build()});
+</script>
+{% endraw %}
+{% endblock %}

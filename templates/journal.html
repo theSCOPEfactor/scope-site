@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="pagehead">
-  <div><h1>Trading Journal</h1><p class="sub">Every trade, month by month, and the plan that gets you to your target.</p></div>
-  <div class="seg tabs" id="tabs"><button class="on" data-t="trades">Trades</button><button data-t="plan">Target plan</button></div>
+  <div><h1>{{ 'Target plan' if start=='plan' else 'Trading Journal' }}</h1><p class="sub">{{ 'The plan that gets you to your target.' if start=='plan' else 'Every trade, month by month, and the plan that gets you to your target.' }}</p></div>
+  <div class="seg tabs" id="tabs"{% if start=='plan' %} style="display:none"{% endif %}><button class="on" data-t="trades">Trades</button><button data-t="plan">Target plan</button></div>
 </div>
+
 <!-- ============ TRADES ============ -->
 <section id="t-trades">
   <div class="card row" style="justify-content:space-between">
@@ -19,13 +20,6 @@
   </div>
   <div class="months" id="months"></div>
   <div class="card"><div class="stats" id="stats"></div></div>
-
-  <div class="card" id="heat-card">
-    <h2>P&amp;L calendar</h2>
-    <div id="heatmap" style="display:flex;flex-wrap:wrap;gap:4px"></div>
-    <p class="note" id="heat-note"></p>
-  </div>
-
   <div class="card">
     <div class="wrap"><table>
       <thead><tr><th class="l">Stock</th><th>Dir</th><th>Type</th><th>Qty</th><th>Avg entry</th><th>Avg exit / LTP</th><th>% move</th><th>Held</th><th>P&amp;L</th><th></th></tr></thead>
@@ -34,6 +28,7 @@
     <div style="text-align:center;margin-top:12px"><button class="btn primary" onclick="openForm()">＋ Log new trade</button></div>
   </div>
 </section>
+
 <!-- ============ TARGET PLAN ============ -->
 <section id="t-plan" hidden>
   <div class="card" id="planform">
@@ -58,6 +53,7 @@
   </div>
   <div id="planout"></div>
 </section>
+
 <div class="modal" id="modal"><div class="card">
   <h2 id="mtitle">New trade</h2>
   <div class="form">
@@ -78,7 +74,9 @@
 </div></div>
 <datalist id="syms"></datalist>
 {% endblock %}
+
 {% block scripts %}
+<script>const START={{ start|tojson }};</script>
 {% raw %}
 <script>
 const $=id=>document.getElementById(id);
@@ -89,6 +87,7 @@ const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const MN=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 let month=new Date().toISOString().slice(0,7), editId=null, DATA=null, CAP=0, planReady=false;
 
+/* ---------- tabs ---------- */
 function showTab(t){
   [...$('tabs').children].forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   $('t-trades').hidden=t!=='trades'; $('t-plan').hidden=t!=='plan';
@@ -97,24 +96,10 @@ function showTab(t){
 }
 $('tabs').onclick=e=>{const b=e.target.closest('button'); if(b) showTab(b.dataset.t)};
 
-function drawHeat(closed){
-  const by={};
-  (closed||[]).forEach(t=>{ if(t.date) by[t.date]=(by[t.date]||0)+(t.pnl||0); });
-  const days=Object.keys(by).sort().slice(-60);
-  const box=$('heatmap'), note=$('heat-note');
-  if(!box) return;
-  if(!days.length){ box.innerHTML='<p class="mut">No closed trades yet.</p>'; if(note) note.textContent=''; return; }
-  box.innerHTML=days.map(d=>{
-    const v=by[d];
-    const bg=v>0?'rgba(52,211,153,.35)':v<0?'rgba(251,113,133,.35)':'rgba(255,255,255,.06)';
-    return `<div title="${d}: ${v>=0?'+':''}${Math.round(v)}" style="width:18px;height:18px;border-radius:4px;background:${bg}"></div>`;
-  }).join('');
-  if(note) note.textContent='Last '+days.length+' days with closed trades. Green = profit day, red = loss day.';
-}
-
+/* ---------- trades ---------- */
 async function load(){
   const r=await (await fetch('/api/journal?month='+month)).json(); DATA=r; const s=r.stats; CAP=s.capital;
-  $('capital').textContent=inr(s.capital); if($('p_cap')) $('p_cap').textContent=inr(s.capital);
+  $('capital').textContent=inr(s.capital); $('p_cap').textContent=inr(s.capital);
   $('exposure').textContent=inr(s.exposure); $('openpos').textContent=s.open+' positions';
   const y=+month.slice(0,4); let h='';
   for(let m=1;m<=12;m++){
@@ -136,7 +121,6 @@ async function load(){
     <td class="${cls(t.pnl)}"><b>${inr(t.pnl)}</b></td>
     <td><button class="btn sm" onclick='openForm(${JSON.stringify(t).replace(/'/g,"&#39;")})'>✎</button> <button class="btn sm danger" onclick="del(${t.id})">✕</button></td></tr>`).join('')
     :'<tr><td colspan="10" class="empty">No trades this month. Click "Log new trade" or import a tradebook.</td></tr>';
-  fetch('/api/pnl').then(x=>x.json()).then(d=>drawHeat(d.closed)).catch(()=>{});
 }
 function shiftY(d){month=(+month.slice(0,4)+d)+month.slice(4);load()}
 async function editCap(){
@@ -168,8 +152,10 @@ $('imp').onchange=async e=>{
 };
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=d.stocks.map(s=>`<option value="${s.symbol}">`).join('')});
 
+/* ---------- target plan ---------- */
 let MODE='target', VIEW='monthly', PNL={closed:[],unrealized:0}, ROWS=[], BUILT=null;
 const todayIso=()=>ScopePlan.iso(new Date());
+
 function readPlan(){
   const unit=$('p_unit').value, dur=+$('p_dur').value||0;
   const days=unit==='days'?dur:unit==='weeks'?dur*7:Math.round(dur*30.4375);
@@ -195,6 +181,7 @@ $('planform').addEventListener('input',()=>renderPlan());
 $('p_save').onclick=async()=>{
   await fetch('/api/plan',{method:'POST',body:JSON.stringify(readPlan())}); toast('Plan saved ✓');
 };
+
 function keyOf(ds,mode){
   if(mode==='daily') return ds; if(mode==='monthly') return ds.slice(0,7);
   const d=ScopePlan.parse(ds); d.setDate(d.getDate()-((d.getDay()+6)%7)); return ScopePlan.iso(d);
@@ -215,6 +202,7 @@ function buildRows(B,start,mode){
   });
   return [...map.values()].map(r=>({...r,gain:r.e-r.s,pc:(r.e-r.s)/r.s,actual:act[r.key]||0}));
 }
+
 function renderPlan(){
   const p=readPlan(), out=$('planout'); BUILT=ScopePlan.build(p,CAP); const B=BUILT;
   if(!B){out.innerHTML='<div class="card empty">Enter a target and a time frame, and your plan sheet appears here automatically.</div>';return}
@@ -228,6 +216,8 @@ function renderPlan(){
   else status=`<span class="badge b-hot">Behind by ${inr(-diff)}</span>`;
   const m=B.rates.m, lvl=m<=.03?['b-ok','Realistic pace']:m<=.08?['b-mid','Ambitious pace']:m<=.15?['b-hot','Aggressive pace']:['b-ext','Extreme pace'];
   const gain=n=>B.eq[Math.min(n,B.N)]-CAP;
+
+  /* what the journal says about expectancy */
   const cl=PNL.closed; let exp='';
   if(cl.length>=5){
     const w=cl.filter(c=>c.pnl>0), l=cl.filter(c=>c.pnl<=0), wr=w.length/cl.length;
@@ -235,6 +225,7 @@ function renderPlan(){
     exp=ex>0?`Your journal: ${Math.round(wr*100)}% win rate, average ${inr(ex)} per trade. At that pace you would need about <b>${Math.ceil(B.T/ex)}</b> trades in total, roughly <b>${Math.max(1,Math.ceil(B.T/ex/Math.max(B.N/21,1/21)))}</b> a month.`
       :`Your journal's average trade is currently ${inr(ex)}, so this target is not yet supported by your own results.`;
   } else exp='Log at least 5 closed trades and this plan will compare itself with your real average trade.';
+
   ROWS=buildRows(B,p.start,VIEW);
   const tot=ROWS.reduce((a,r)=>({g:a.g+r.gain,a:a.a+(r.from<=today?r.actual:0)}),{g:0,a:0});
   const body=ROWS.map(r=>{
@@ -243,6 +234,7 @@ function renderPlan(){
       <td>${pct(r.pc)}</td><td>${inr(r.gain)}</td><td>${inr(r.e)}</td>
       <td class="${started?cls(r.actual):'mut'}">${started?inr(r.actual):'–'}</td>
       <td class="${started&&r.to<today?cls(v):'mut'}">${started&&r.to<today?inr(v):'–'}</td></tr>`}).join('');
+
   out.innerHTML=`
   <div class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Your plan</h2><span class="badge ${lvl[0]}">${lvl[1]}</span></div>
@@ -281,9 +273,10 @@ function downloadCsv(){
   const csv=lines.map(l=>l.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='scope-plan-'+VIEW+'.csv'; a.click();
 }
+
 load();
 const qs=new URLSearchParams(location.search).get('tab');
-showTab(qs==='plan'||location.hash==='#plan'?'plan':'trades');
+showTab(START==='plan'||qs==='plan'||location.hash==='#plan'?'plan':'trades');
 </script>
 {% endraw %}
 {% endblock %}
