@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Open zone</h1><p class="sub">Open price nakho → ladder, ane pehla aa zone par open thayu tyare su thayu · fakat OPEN ganay che</p></div></div>
+<div class="card">
+  <div class="row" style="gap:14px;align-items:flex-end">
+    <div class="fld"><small class="mut" style="display:block;margin-bottom:4px">Index</small><div class="seg" id="ix"></div></div>
+    <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">0 (ZB / VLOW)</small><input id="v0" type="number" step="any" style="width:130px"></label>
+    <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">1 (1B / VHIGH)</small><input id="v1" type="number" step="any" style="width:130px"></label>
+    <label class="fld"><small class="mut" style="display:block;margin-bottom:4px">Open price</small><input id="op" type="number" step="any" style="width:130px"></label>
+  </div>
+  <p class="note" id="auto"></p>
+</div>
+<div id="out"></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const NAMES={'-3.618':'','-2.618':'','-2':'','-1.618':'Impulsive Bouncer','-1.272':'','-0.618':'Bouncer','-0.236':'',
+ '0':'ZB (VLOW)','0.236':'Reversal','0.382':'','0.5':'','0.618':'Golden Reversal','0.786':'','0.886':'','1':'1B (VHIGH)',
+ '1.272':'','1.414':'','1.618':'GR1','2':'DD','2.272':'','2.414':'','2.618':'','3.618':''};
+let Z=null, cur=null;
+const sgn=x=>(x>=0?'+':'')+x;
+const pc=x=>`<span class="${x>=0?'pos':'neg'}">${sgn(x)}%</span>`;
+function zoneOf(r){let i=0;while(i<Z.edges.length&&r>=Z.edges[i])i++;return i}
+
+function calc(){
+  const v0=parseFloat($('v0').value), v1=parseFloat($('v1').value), op=parseFloat($('op').value);
+  if(!(v1>v0)||isNaN(op)){ $('out').innerHTML='<div class="card"><p class="mut">0, 1 ane Open nakho (1 moto hovo joiye).</p></div>'; return }
+  const rng=v1-v0, r=(op-v0)/rng, L=Z.ladder;
+  const up=L.filter(x=>x>r), dn=L.filter(x=>x<=r);
+  const nu=up[0], nd=dn[dn.length-1];
+  const rows=[...L].sort((a,b)=>b-a).map(x=>({x,p:v0+rng*x}));
+  // open row ne sachi jagya e muko
+  const html=[]; let placed=false;
+  rows.forEach(l=>{
+    if(!placed && l.p<=op){ html.push(openRow(op,r)); placed=true }
+    html.push(`<tr class="${l.x===nu?'hl':''}${l.x===nd?' hl':''}"><td class="l"><b>${l.x}</b> <span class="mut">${NAMES[l.x]||''}</span></td><td>${f2(l.p)}</td><td class="${l.p>=op?'pos':'neg'}">${(l.p>=op?'+':'')+(l.p-op).toFixed(2)}</td><td>${l.x===nu?'<small class="mut">nazik upar</small>':l.x===nd?'<small class="mut">nazik niche</small>':''}</td></tr>`);
+  });
+  if(!placed) html.push(openRow(op,r));
+  const zi=zoneOf(r);
+  let zhtml='<p class="mut">Index no data haji nathi (Open Zone job run karo).</p>';
+  const E=Z.indices[cur];
+  if(E){
+    const z=E.zones[zi], b=E.base;
+    if(z && z.n){
+      const fu=z.first_up, fd=z.first_dn;
+      zhtml=`<div class="row" style="justify-content:space-between"><h3 style="margin:0">Zone: ${z.label} <small class="mut">(open ratio ${r.toFixed(3)})</small></h3><span class="mut">${z.n} divas · ${E.from} thi ${E.to}</span></div>
+      <div class="wrap" style="margin-top:10px"><table><thead><tr><th class="l">Open pachhi</th><th>Aa zone</th><th>Badha divas</th></tr></thead><tbody>
+        <tr><td class="l">Pehla nazik <b>upar</b> level (${nu==null?'-':nu} = ${nu==null?'-':f2(v0+rng*nu)}) aavyu</td><td><b>${fu}%</b></td><td class="mut">-</td></tr>
+        <tr><td class="l">Pehla nazik <b>niche</b> level (${nd==null?'-':nd} = ${nd==null?'-':f2(v0+rng*nd)}) aavyu</td><td><b>${fd}%</b></td><td class="mut">-</td></tr>
+        <tr><td class="l">Banne ek j candle ma / kai nahi</td><td>${z.first_both}% / ${z.first_none}%</td><td class="mut">-</td></tr>
+        <tr><td class="l">Upar level aavya pachhi te level ni <b>niche pachha</b> (close)</td><td>${z.rev_up==null?'<span class="mut">ochha cases</span>':'<b>'+z.rev_up+'%</b> <small class="mut">('+z.n_up+')</small>'}</td><td class="mut">-</td></tr>
+        <tr><td class="l">Niche level aavya pachhi te level ni <b>upar pachha</b> (close)</td><td>${z.rev_dn==null?'<span class="mut">ochha cases</span>':'<b>'+z.rev_dn+'%</b> <small class="mut">('+z.n_dn+')</small>'}</td><td class="mut">-</td></tr>
+        <tr><td class="l">Open thi divas no high (average)</td><td>${pc(z.avg_up)}</td><td>${pc(b.avg_up)}</td></tr>
+        <tr><td class="l">Open thi divas no low (average)</td><td>${pc(z.avg_dn)}</td><td>${pc(b.avg_dn)}</td></tr>
+        <tr><td class="l">Open thi divas no close (average) · divas no result</td><td>${pc(z.avg_cl)}</td><td>${pc(b.avg_cl)}</td></tr>
+        <tr><td class="l">Close open karta upar rahyo</td><td>${z.up_days}%</td><td>${b.up_days}%</td></tr>
+      </tbody></table></div>
+      <h3 style="margin:16px 0 6px">Aa zone na chhella divas</h3>
+      <div class="wrap"><table><thead><tr><th class="l">Date</th><th>Open</th><th>Gap</th><th>High</th><th>Low</th><th>Close</th><th>Pehla</th></tr></thead><tbody>
+      ${z.recent.map(d=>`<tr><td class="l">${d.date}</td><td>${f2(d.open)}</td><td>${pc(d.gap)}</td><td>${pc(d.up)}</td><td>${pc(d.dn)}</td><td>${pc(d.cl)}</td><td>${{up:'upar',dn:'niche',both:'banne',none:'kai nahi'}[d.first]}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    } else zhtml=`<p class="mut">Aa zone (${z?z.label:''}) ma history ma ek pan divas nathi.</p>`;
+  }
+  $('out').innerHTML=`<div class="card"><h3 style="margin:0 0 8px">Ladder · open ${f2(op)} · range ${f2(rng)}</h3>
+    <div class="wrap"><table><thead><tr><th class="l">Level</th><th>Price</th><th>Open thi</th><th></th></tr></thead><tbody>${html.join('')}</tbody></table></div></div>
+    <div class="card">${zhtml}
+    <p class="note"><b>Vanchvu:</b> aa past na aankda chhe (levels aa site na profile thi, tamara manual chart thi thodu alag hoi shake). "Badha divas" column baseline chhe: zone ni numbers e baseline karta alag hoy to j kai matlab. Divas ochha hoy (n nano) to aankda bharosa layak nathi. Aa prediction nathi.</p></div>`;
+}
+function openRow(op,r){return `<tr class="open"><td class="l"><b>OPEN</b> <span class="mut">ratio ${r.toFixed(3)}</span></td><td><b>${f2(op)}</b></td><td>0</td><td></td></tr>`}
+
+function setIndex(name){
+  cur=name; [...$('ix').children].forEach(b=>b.classList.toggle('on',b.dataset.n===name));
+  const E=Z.indices[name]; if(!E){ $('auto').textContent='Aa index no data nathi.'; calc(); return }
+  const ds=Object.keys(E.levels).sort(), d=ds[ds.length-1], lv=E.levels[d];
+  $('v0').value=lv.vlow; $('v1').value=lv.vhigh;
+  $('auto').innerHTML=`Aa site e <b>${d}</b> na divas thi gantri karyu: 0 = <b>${f2(lv.vlow)}</b>, 1 = <b>${f2(lv.vhigh)}</b>, Point = ${f2(lv.point)}. Tamara chart na numbers alag hoy to upar potana nakho.`;
+  calc();
+}
+fetch('/api/openzone').then(r=>r.json()).then(d=>{
+  Z=d;
+  const names=Object.keys(d.indices);
+  if(!d.updated||!names.length){ $('ix').innerHTML='';
+    $('auto').innerHTML='Open-zone data haji nathi. GitHub → Actions → <b>Scope Open Zone</b> → Run workflow (~5 min), pachhi refresh karo. Tya sudhi tame 0, 1, Open nakhi ladder joi shako.';
+    Z.indices={}; Z.ladder=d.ladder||[-3.618,-2.618,-2,-1.618,-1.272,-0.618,-0.236,0,0.236,0.382,0.5,0.618,0.786,0.886,1,1.272,1.414,1.618,2,2.272,2.414,2.618,3.618]; Z.edges=d.edges||[-1.272,-0.618,-0.236,0,0.236,0.5,0.786,1,1.272,1.618]; cur='Nifty 50'; calc(); }
+  else { $('ix').innerHTML=names.map(n=>`<button data-n="${n}">${n}</button>`).join(''); setIndex(names[0]); }
+  $('ix').onclick=e=>{const b=e.target.closest('button'); if(b) setIndex(b.dataset.n)};
+});
+['v0','v1','op'].forEach(i=>$(i).addEventListener('input',()=>{ if(Z) calc() }));
+</script>
+<style>tr.hl td{background:rgba(96,165,250,.08)}tr.open td{background:rgba(250,204,21,.16);border-top:1px solid rgba(250,204,21,.5);border-bottom:1px solid rgba(250,204,21,.5)}</style>
+{% endraw %}
+{% endblock %}
