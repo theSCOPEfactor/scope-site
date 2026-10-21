@@ -1,3 +1,2 @@
-# Navi listing (IPO) na symbols ahin lakho, dar line ma ek. Example:
-# ABCLTD
-# Aa symbols nu live price + aaj na intraday levels website par aave che (har ~15 min market hours ma).
+NSE
+HDFIRE
