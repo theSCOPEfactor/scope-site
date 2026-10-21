@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Backtest</h1><p class="sub" id="sub">What happened after price reached a level · past data only</p></div></div>
+<div class="card" id="box"><p class="mut">Loading…</p></div>
+{% endblock %}
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+let D=null, grp='all';
+const cell=x=>x?`<td class="${x.avg>=0?'pos':'neg'}">${x.avg>=0?'+':''}${x.avg}%<small class="mut" style="display:block">${x.up}% up</small></td>`:'<td>-</td>';
+function draw(){
+  const R=D.rows.filter(r=>r.group==grp), base=R.find(r=>r.ev=='all_days');
+  $('box').innerHTML=`<div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <div class="seg" id="g"><button data-g="all" class="${grp=='all'?'on':''}">All stocks</button><button data-g="stage2" class="${grp=='stage2'?'on':''}">Stage 2 only</button><button data-g="other" class="${grp=='other'?'on':''}">Not Stage 2</button></div>
+    <span class="mut">${D.stocks_used} stocks · ${D.samples.toLocaleString('en-IN')} observations · updated ${D.updated}</span></div>
+    <div class="wrap"><table><thead><tr><th class="l">When price was</th><th>Times</th><th>After 1 day</th><th>After 3 days</th><th>After 5 days</th></tr></thead><tbody>
+    ${R.map(r=>`<tr style="${r.ev=='all_days'?'background:rgba(255,255,255,.05)':''}"><td class="l"><b>${r.label}</b></td><td>${r.n.toLocaleString('en-IN')}</td>${cell(r.r1)}${cell(r.r3)}${cell(r.r5)}</tr>`).join('')||'<tr><td colspan="5" class="empty">Not enough data in this group.</td></tr>'}
+    </tbody></table></div>
+    <p class="note">Each cell shows the average price change after that many days and how often it was higher. Compare every row with the grey “All days” row: a level only means something if it does better or worse than that baseline.</p>
+    <p class="note"><b>Please read:</b> this is only about the past (about one year of hourly data), measured with Scope’s own levels, which can differ a little from a manual chart. Many observations come from the same stock and the same weeks, so the real number of independent cases is smaller than “Times”. Good past numbers do not promise the same next time.</p>`;
+  $('g').onclick=e=>{const b=e.target.closest('button'); if(b){grp=b.dataset.g; draw()}};
+}
+fetch('/api/backtest').then(r=>r.json()).then(d=>{
+  D=d; if(!d.updated){ $('box').innerHTML='<p class="mut">The backtest has not been run yet. Go to GitHub → Actions → <b>Scope Backtest</b> → Run workflow. It takes about 20-30 minutes, then refresh this page.</p>'; return }
+  draw();
+});
+</script>
+{% endraw %}
+{% endblock %}

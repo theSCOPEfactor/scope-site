@@ -41,6 +41,12 @@ function nextLevels(s){
 }
 const row=(k,v)=>`<div class="stat"><small>${k}</small><b>${v}</b></div>`;
 
+function hist(h){
+  if(!h) return '';
+  const rows=[['lo','Near VLOW'],['mg','At the magnet'],['hi','Near VHIGH']].filter(x=>h[x[0]]).map(x=>{const v=h[x[0]]; return `<tr><td class="l">${x[1]}</td><td>${v[0]}</td><td class="${v[1]>=0?'pos':'neg'}">${v[1]>=0?'+':''}${v[1]}%</td><td>${v[2]}%</td></tr>`}).join('');
+  return rows?`<div class="card"><h2>What happened here before</h2><div class="wrap"><table><thead><tr><th class="l">When price was</th><th>Times</th><th>Avg change after 3 days</th><th>Up after 3 days</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Last year of this stock only, so the number of times is small. It describes the past, it does not predict the next day. See the Backtest page for all stocks together.</p></div>`:'';
+}
 function render(r){
   const s=r.stock, det=r.detail||{}, pg=$('page');
   if(!s){
@@ -97,6 +103,7 @@ function render(r){
     ${row('Avg volume',Number(s.avg_vol).toLocaleString('en-IN'))}
   </div></div>
   ${s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:''}
+  ${hist(r.history)}
   <div class="card"><h2>Scope summary</h2><ul class="sum">${summary(s).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
     <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p></div>
   <div class="card"><h2>Fundamentals</h2>
