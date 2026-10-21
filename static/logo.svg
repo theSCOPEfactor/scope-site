@@ -1,94 +1,124 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Scope">
-  <defs>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffe08a"/>
-      <stop offset=".45" stop-color="#60a5fa"/>
-      <stop offset="1" stop-color="#a78bfa"/>
-    </linearGradient>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0f1b3a"/>
-      <stop offset="1" stop-color="#050914"/>
-    </linearGradient>
-    <radialGradient id="iris" cx="42%" cy="38%" r="72%">
-      <stop offset="0" stop-color="#1e3a6e"/>
-      <stop offset="1" stop-color="#071028"/>
-    </radialGradient>
-    <clipPath id="eyeClip">
-      <path d="M4 32 Q32 8 60 32 Q32 56 4 32 Z"/>
-    </clipPath>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="1.2" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scope logo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap">
+<style>
+:root{--bg:#f3f5f8;--fg:#0f1620;--mut:#52606f;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e1320;--fg:#edeff5;--mut:#9aa7b8;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1320;--fg:#edeff5;--mut:#9aa7b8;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:'Courier Prime','Courier New',Courier,monospace;display:grid;place-items:center;overflow-x:hidden}
+.stack{display:flex;flex-direction:column;align-items:center;gap:clamp(14px,3vw,22px);padding:24px}
+svg{width:min(68vw,320px);height:auto;cursor:crosshair;touch-action:manipulation;overflow:visible;outline:none}
+svg:focus-visible{outline:2px solid #3AA0E8;outline-offset:8px;border-radius:50%}
+.ring{transform-origin:150px 150px;animation:spin 60s linear infinite}
+.ring.b{animation-duration:90s;animation-direction:reverse}
+@keyframes spin{from{transform:rotate(var(--r))}to{transform:rotate(calc(var(--r) + 360deg))}}
+.core{transform-origin:150px 150px;animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.25);opacity:.75}}
+.line{position:relative;display:inline-block;margin:0;font-weight:400;cursor:text}
+.full{visibility:hidden;white-space:nowrap}
+.typed{position:absolute;left:0;top:0;white-space:nowrap}
+.word{font-weight:700;font-size:clamp(36px,10vw,60px);letter-spacing:.3em;line-height:1.1}
+.tag{font-size:clamp(11px,3.1vw,17px);letter-spacing:.2em;color:var(--mut)}
+.caret{display:inline-block;width:.5em;height:.95em;background:currentColor;vertical-align:-.1em;margin-left:.08em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.hint{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;font-size:12px;color:var(--mut);letter-spacing:.04em;margin:0}
+@media (prefers-reduced-motion: reduce){.ring,.core,.caret{animation:none}}
+</style>
+</head>
+<body>
+<main class="stack">
+  <svg id="logo" viewBox="0 0 300 300" tabindex="0" role="img" aria-label="Scope: a target with an arrow. Move the pointer to aim, click to fire.">
+    <defs>
+      <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="40" y1="40" x2="260" y2="260">
+        <stop offset="0" stop-color="#2BD9B8"/><stop offset=".55" stop-color="#3AA0E8"/><stop offset="1" stop-color="#FF9A4D"/>
+      </linearGradient>
+      <linearGradient id="ag" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#FF8A3D"/><stop offset="1" stop-color="#FFC27A"/>
+      </linearGradient>
+      <radialGradient id="core"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#5eead4"/><stop offset="1" stop-color="#2BD9B8" stop-opacity="0"/></radialGradient>
+    </defs>
 
-  <style>
-    .blink-m { animation: blink 1.4s ease-in-out infinite; }
-    .blink-g { animation: blink 1.4s ease-in-out .45s infinite; }
-    .blink-d { animation: blink 1.4s ease-in-out .9s infinite; }
-    .orbit { transform-origin:32px 32px; animation:spin 16s linear infinite; }
-    @keyframes blink {
-      0%,100% { opacity:.25; r:1.2; }
-      50% { opacity:1; r:2.1; }
-    }
-    @keyframes spin { to { transform:rotate(360deg) } }
-    @media (prefers-reduced-motion:reduce) {
-      .blink-m,.blink-g,.blink-d,.orbit { animation:none!important; opacity:1; }
-    }
-  </style>
-
-  <!-- tile -->
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)" stroke="url(#rim)" stroke-width="1.6"/>
-
-  <!-- eye outline -->
-  <path d="M4 32 Q32 8 60 32 Q32 56 4 32 Z" fill="#060b1c" stroke="url(#rim)" stroke-width="1.4"/>
-
-  <!-- iris area -->
-  <circle cx="32" cy="32" r="14" fill="url(#iris)"/>
-
-  <!-- India map (simplified), clipped to eye -->
-  <g clip-path="url(#eyeClip)">
-    <!-- soft iris wash -->
-    <circle cx="32" cy="32" r="13.2" fill="#0a162e"/>
-
-    <!-- India silhouette — centered in eye -->
-    <g transform="translate(32 33) scale(0.42) translate(-40 -48)">
-      <path fill="#3b82f6" fill-opacity=".9" stroke="#93c5fd" stroke-width="1.2" stroke-linejoin="round"
-        d="M42 8
-           C48 10 52 16 54 22
-           C56 28 55 34 53 40
-           C52 46 54 52 50 58
-           C46 64 40 68 36 74
-           C32 80 30 86 28 90
-           C24 86 22 80 20 74
-           C16 68 12 62 10 54
-           C8 46 6 38 8 30
-           C10 22 14 16 20 12
-           C26 8 34 6 42 8 Z
-           M28 18 C30 14 34 12 38 14 C36 18 32 20 28 18 Z"/>
-      <!-- south tip emphasis -->
-      <path fill="#60a5fa" d="M28 88 C30 92 32 96 30 98 C28 96 26 92 28 88 Z"/>
+    <!-- abstract broken rings -->
+    <g fill="none" stroke="url(#g)" stroke-linecap="round">
+      <circle class="ring" style="--r:-24deg" cx="150" cy="150" r="100" stroke-width="8" stroke-dasharray="470 158"/>
+      <circle class="ring b" style="--r:40deg" cx="150" cy="150" r="76" stroke-width="7" stroke-dasharray="300 177.5"/>
+      <circle class="ring" style="--r:-80deg" cx="150" cy="150" r="52" stroke-width="6" stroke-dasharray="200 126.7"/>
+      <circle class="ring b" style="--r:120deg" cx="150" cy="150" r="28" stroke-width="5" stroke-dasharray="120 56"/>
+      <!-- orbit swoosh -->
+      <ellipse cx="150" cy="150" rx="125" ry="38" transform="rotate(-28 150 150)" stroke-width="9" stroke-dasharray="216 366" stroke-dashoffset="-145"/>
+      <!-- crosshair ticks -->
+      <path stroke-width="4" d="M150 22V40M150 260V278M22 150H40M260 150H278"/>
     </g>
 
-    <!-- Stock exchange blink points (map coords scaled into eye) -->
-    <!-- Mumbai — BSE + NSE (primary) -->
-    <circle class="blink-m" cx="27.5" cy="38.5" r="1.8" fill="#f5c04a" filter="url(#glow)"/>
-    <circle cx="27.5" cy="38.5" r="3.2" fill="none" stroke="#f5c04a" stroke-opacity=".35" stroke-width=".6">
-      <animate attributeName="r" values="2.2;4;2.2" dur="1.4s" repeatCount="indefinite"/>
-      <animate attributeName="stroke-opacity" values=".5;0;0.5" dur="1.4s" repeatCount="indefinite"/>
-    </circle>
+    <circle class="core" cx="150" cy="150" r="22" fill="url(#core)"/>
+    <circle cx="150" cy="150" r="6" fill="#fff" opacity=".92"/>
+    <circle id="rip" cx="150" cy="150" r="12" fill="none" stroke="#FF9A4D" stroke-width="3" opacity="0" style="transform-box:fill-box;transform-origin:center"/>
 
-    <!-- GIFT City / Gujarat IFSC -->
-    <circle class="blink-g" cx="26" cy="34.5" r="1.3" fill="#34d399" filter="url(#glow)"/>
+    <!-- interactive arrow -->
+    <g id="aim" transform="translate(150 150) rotate(-42)">
+      <g id="shaft">
+        <path d="M-92 10 Q-20 14 74 -2" fill="none" stroke="url(#ag)" stroke-width="9" stroke-linecap="round"/>
+        <path d="M68 -22 L114 -2 L70 18 Q82 -2 68 -22Z" fill="url(#ag)" stroke="#FFB46B" stroke-width="2" stroke-linejoin="round"/>
+      </g>
+    </g>
+  </svg>
 
-    <!-- Delhi NCR (financial hub) -->
-    <circle class="blink-d" cx="29.5" cy="28.5" r="1.2" fill="#60a5fa" filter="url(#glow)"/>
-  </g>
+  <h1 class="line word" data-t="SCOPE" data-d="140" aria-label="Scope"><span class="full" aria-hidden="true">SCOPE</span><span class="typed" aria-hidden="true"></span></h1>
+  <p class="line tag" data-t="PRECISION. VISION. SUCCESS." data-d="60" aria-label="Precision. Vision. Success."><span class="full" aria-hidden="true">PRECISION. VISION. SUCCESS.</span><span class="typed" aria-hidden="true"></span></p>
+</main>
+<p class="hint">Move your pointer to aim the arrow. Click the symbol to fire, or click the text to retype it.</p>
 
-  <!-- orbit ring -->
-  <circle class="orbit" cx="32" cy="32" r="15.5" fill="none" stroke="#fff" stroke-opacity=".4"
-          stroke-width=".65" stroke-dasharray="2.2 2.6"/>
+<script>
+const $=s=>document.querySelector(s), svg=$('#logo'), aim=$('#aim'), shaft=$('#shaft'), rip=$('#rip');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-  <!-- highlight -->
-  <circle cx="38" cy="26" r="1.8" fill="#fff" opacity=".75"/>
-</svg>
+/* aim */
+let cur=-42,target=-42,active=false;
+addEventListener('pointermove',e=>{const r=svg.getBoundingClientRect();active=true;target=Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2))*180/Math.PI});
+document.documentElement.addEventListener('mouseleave',()=>active=false);
+(function tick(now){
+  const idle=reduce?-42:-42+Math.sin(now/1400)*5, tg=active?target:idle;
+  cur+=(((tg-cur+540)%360)-180)*.12;
+  aim.setAttribute('transform','translate(150 150) rotate('+cur.toFixed(2)+')');
+  requestAnimationFrame(tick);
+})(0);
+
+/* fire */
+function fire(){
+  shaft.animate([{transform:'translateX(0)'},{transform:'translateX(-18px)',offset:.3},{transform:'translateX(24px)',offset:.55},{transform:'translateX(0)'}],{duration:650,easing:'cubic-bezier(.2,.7,.2,1)'});
+  rip.animate([{transform:'scale(1)',opacity:.95},{transform:'scale(9)',opacity:0}],{duration:800,easing:'ease-out'});
+}
+svg.addEventListener('click',fire);
+svg.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire()}});
+
+/* typewriter */
+const lines=[...document.querySelectorAll('.line')];
+const caret=Object.assign(document.createElement('span'),{className:'caret'});
+let run=0;
+async function typeAll(){
+  const id=++run;
+  lines.forEach(l=>l.querySelector('.typed').replaceChildren());
+  for(const l of lines){
+    const full=l.dataset.t, box=l.querySelector('.typed'), tn=document.createTextNode('');
+    box.replaceChildren(tn,caret);
+    if(reduce){tn.data=full;continue}
+    for(let i=1;i<=full.length;i++){
+      if(id!==run) return;
+      tn.data=full.slice(0,i);
+      await sleep(+l.dataset.d*(.7+Math.random()*.7));
+    }
+    await sleep(350);
+  }
+}
+document.querySelector('.stack').addEventListener('click',e=>{if(e.target.closest('.line'))typeAll()});
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>setTimeout(typeAll,300));
+</script>
+</body>
+</html>
