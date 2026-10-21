@@ -25,26 +25,46 @@ INDICES = [("Nifty 50", "NSE", "99926000"),
            ("Nifty Bank", "NSE", "99926009"),
            ("Sensex", "BSE", "99919000")]
 
-# Ladder (tamara chart na levels)
-LADDER = [-3.618, -2.618, -2, -1.618, -1.272, -0.618, -0.236, 0, 0.236, 0.382, 0.5, 0.618,
-          0.786, 0.886, 1, 1.272, 1.414, 1.618, 2, 2.272, 2.414, 2.618, 3.618]
-# Open kya zone ma padyo (edges ratio ma)
-ZEDGES = [-1.272, -0.618, -0.236, 0, 0.236, 0.5, 0.786, 1, 1.272, 1.618]
+# Ladder = site na level (Stock page jevu): ratio VLOW=0, VHIGH=1 par based
+LVNAME = {-0.618: "Deep reversal 2", -0.272: "Deep reversal 1", 0: "VLOW", 0.25: "Lower reversal",
+          0.75: "Upper reversal", 1: "VHIGH", 1.272: "Extension"}
+LADDER = sorted(LVNAME)
 
 
-def zone_of(r):
-    i = 0
-    while i < len(ZEDGES) and r >= ZEDGES[i]:
-        i += 1
-    return i            # 0 .. len(ZEDGES)
+def zone_key(r, pr=None):
+    """Open (ratio r) kya be level vachche. pr = Point no ratio (hoy to e pan level ganay)."""
+    lv = [(x, n) for x, n in LVNAME.items()]
+    if pr is not None:
+        lv.append((pr, "Point"))
+    lv.sort()
+    lo = [(x, n) for x, n in lv if x <= r]
+    up = [(x, n) for x, n in lv if x > r]
+    return (lo[-1] if lo else None), (up[0] if up else None)
 
 
-def zone_label(i):
-    if i == 0:
-        return f"Below {ZEDGES[0]}"
-    if i == len(ZEDGES):
-        return f"Above {ZEDGES[-1]}"
-    return f"{ZEDGES[i-1]} to {ZEDGES[i]}"
+def touch(g, vlow, rng, lo, up, cl):
+    """Open pachhi pehla kayo nazik level aavyo + te level thi pachha pharyo ke nahi."""
+    pu = vlow + rng * up[0] if up else None
+    pdn = vlow + rng * lo[0] if lo else None
+    first = "none"
+    for h, l in zip(g["h"].values, g["l"].values):
+        hu = pu is not None and h >= pu
+        hd = pdn is not None and l <= pdn
+        if hu and hd:
+            first = "both"; break
+        if hu:
+            first = "up"; break
+        if hd:
+            first = "dn"; break
+    return first, bool(first == "up" and cl < pu), bool(first == "dn" and cl > pdn)
+
+
+def label_of(lo, up):
+    if lo is None:
+        return f"Below {up[1]}"
+    if up is None:
+        return f"Above {lo[1]}"
+    return f"{lo[1]} to {up[1]}"
 
 
 def profile(d, bins=BINS):
@@ -72,7 +92,7 @@ def profile(d, bins=BINS):
 
 
 def analyze(m15):
-    """m15: DataFrame ts,o,h,l,c (intraday). Return (days list, latest levels dict)."""
+    """m15: DataFrame ts,o,h,l,c (intraday). Return (days list, levels dict)."""
     m15 = m15.sort_values("ts").drop_duplicates("ts")
     t = m15["ts"].dt.time
     m15 = m15[(t >= dt.time(9, 15)) & (t <= dt.time(15, 30))].copy()
@@ -95,57 +115,42 @@ def analyze(m15):
         op = float(g["o"].iloc[0])
         prev_close = float(pg["c"].iloc[-1])
         r = (op - pr["vlow"]) / rng
-        up_l = [x for x in LADDER if x > r]
-        dn_l = [x for x in LADDER if x <= r]
-        nxt_up = up_l[0] if up_l else None
-        nxt_dn = dn_l[-1] if dn_l else None
-        pu = pr["vlow"] + rng * nxt_up if nxt_up is not None else None
-        pd_ = pr["vlow"] + rng * nxt_dn if nxt_dn is not None else None
-        first = "none"
-        for h, l in zip(g["h"].values, g["l"].values):
-            hu = pu is not None and h >= pu
-            hd = pd_ is not None and l <= pd_
-            if hu and hd:
-                first = "both"; break
-            if hu:
-                first = "up"; break
-            if hd:
-                first = "dn"; break
-        hi, lo, cl = float(g["h"].max()), float(g["l"].min()), float(g["c"].iloc[-1])
-        days.append({
-            "date": str(d), "open": round(op, 2), "r": round(r, 3), "zone": zone_of(r),
-            "gap": round((op / prev_close - 1) * 100, 2),
-            "up": round((hi / op - 1) * 100, 2), "dn": round((lo / op - 1) * 100, 2),
-            "cl": round((cl / op - 1) * 100, 2), "first": first,
-            "up_lvl": nxt_up, "dn_lvl": nxt_dn,
-            # nazik na level thi pachhi pachhu aavyu? (touch pachhi close te level ni pachhal)
-            "rev_up": (first == "up" and cl < pu), "rev_dn": (first == "dn" and cl > pd_),
-            "lv": {"vlow": pr["vlow"], "vhigh": pr["vhigh"]},
-        })
+        pratio = (pr["point"] - pr["vlow"]) / rng
+        hi, lo_, cl = float(g["h"].max()), float(g["l"].min()), float(g["c"].iloc[-1])
+        rec = {"date": str(d), "open": round(op, 2), "r": round(r, 3),
+               "gap": round((op / prev_close - 1) * 100, 2),
+               "up": round((hi / op - 1) * 100, 2), "dn": round((lo_ / op - 1) * 100, 2),
+               "cl": round((cl / op - 1) * 100, 2)}
+        for tag, prr in (("p", pratio), ("n", None)):      # p = Point sathe, n = Point vagar
+            lo, up = zone_key(r, prr)
+            first, ru, rd = touch(g, pr["vlow"], rng, lo, up, cl)
+            rec[tag] = {"key": label_of(lo, up), "first": first, "rev_up": ru, "rev_dn": rd}
+        days.append(rec)
     return days, levels
 
 
-def summarize(days):
-    zones = []
-    for i in range(len(ZEDGES) + 1):
-        z = [d for d in days if d["zone"] == i]
+def summarize(days, tag):
+    groups = {}
+    for d in days:
+        groups.setdefault(d[tag]["key"], []).append(d)
+    zones = {}
+    for key, z in groups.items():
         n = len(z)
-        row = {"zone": i, "label": zone_label(i), "n": n}
-        if n:
-            f = lambda k: round(float(np.mean([d[k] for d in z])), 2)
-            row.update(avg_cl=f("cl"), avg_up=f("up"), avg_dn=f("dn"),
-                       up_days=round(100 * np.mean([d["cl"] > 0 for d in z])),
-                       first_up=round(100 * np.mean([d["first"] == "up" for d in z])),
-                       first_dn=round(100 * np.mean([d["first"] == "dn" for d in z])),
-                       first_both=round(100 * np.mean([d["first"] == "both" for d in z])),
-                       first_none=round(100 * np.mean([d["first"] == "none" for d in z])))
-            fu = [d for d in z if d["first"] == "up"]; fd = [d for d in z if d["first"] == "dn"]
-            row["rev_up"] = round(100 * np.mean([d["rev_up"] for d in fu])) if len(fu) >= 3 else None
-            row["rev_dn"] = round(100 * np.mean([d["rev_dn"] for d in fd])) if len(fd) >= 3 else None
-            row["n_up"], row["n_dn"] = len(fu), len(fd)
-            row["recent"] = [{k: d[k] for k in ("date", "open", "r", "gap", "up", "dn", "cl", "first")}
-                             for d in z[-8:]][::-1]
-        zones.append(row)
+        f = lambda k: round(float(np.mean([d[k] for d in z])), 2)
+        fs = [d[tag]["first"] for d in z]
+        row = {"label": key, "n": n, "avg_cl": f("cl"), "avg_up": f("up"), "avg_dn": f("dn"),
+               "up_days": round(100 * np.mean([d["cl"] > 0 for d in z])),
+               "first_up": round(100 * np.mean([x == "up" for x in fs])),
+               "first_dn": round(100 * np.mean([x == "dn" for x in fs])),
+               "first_both": round(100 * np.mean([x == "both" for x in fs])),
+               "first_none": round(100 * np.mean([x == "none" for x in fs]))}
+        fu = [d for d in z if d[tag]["first"] == "up"]; fd = [d for d in z if d[tag]["first"] == "dn"]
+        row["rev_up"] = round(100 * np.mean([d[tag]["rev_up"] for d in fu])) if len(fu) >= 3 else None
+        row["rev_dn"] = round(100 * np.mean([d[tag]["rev_dn"] for d in fd])) if len(fd) >= 3 else None
+        row["n_up"], row["n_dn"] = len(fu), len(fd)
+        row["recent"] = [{"date": d["date"], "open": d["open"], "gap": d["gap"], "up": d["up"],
+                          "dn": d["dn"], "cl": d["cl"], "first": d[tag]["first"]} for d in z[-8:]][::-1]
+        zones[key] = row
     base = {"n": len(days)}
     if days:
         base.update(avg_cl=round(float(np.mean([d["cl"] for d in days])), 2),
@@ -207,16 +212,17 @@ def main():
     years = float(os.environ.get("YEARS", "3"))
     api = login()
     out = {"updated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-           "ladder": LADDER, "edges": ZEDGES, "indices": {}}
+           "indices": {}}
     for name, exch, token in INDICES:
         print("->", name)
         m15 = fetch_all(api, exch, token, years)
         if m15 is None or len(m15) < 200:
             print("  data nathi:", name); continue
         days, levels = analyze(m15)
-        zones, base = summarize(days)
+        zones, base = summarize(days, "p")
+        zones_np, _ = summarize(days, "n")
         last = sorted(levels)[-6:]
-        out["indices"][name] = {"zones": zones, "base": base,
+        out["indices"][name] = {"zones": zones, "zones_np": zones_np, "base": base,
                                 "levels": {d: levels[d] for d in last},
                                 "from": days[0]["date"] if days else None,
                                 "to": days[-1]["date"] if days else None}
