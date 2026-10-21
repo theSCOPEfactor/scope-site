@@ -126,7 +126,7 @@ def _clean(o):
     return o
 
 
-def get_data():
+def _get_base_data():
     """GitHub (fresh) -> otherwise the newest of cached copy / local data.json. Reason is kept in _mem for /api/status."""
     if _mem["data"] and time.time() - _mem["t"] < 1800:
         return _mem["data"]
@@ -208,6 +208,67 @@ def get_details():
         data = {"updated": None, "indices": {}, "stocks": {}}
     _dmem.update(t=time.time() if data["updated"] else time.time() - 3300, data=data)
     return data
+
+
+_nmem = {"t": 0, "data": None}
+_gmem = {"key": None, "data": None}
+
+
+def get_new():
+    """new.json = navi listing (IPO) no live/intraday data (GitHub, har ~15 min). Never raises."""
+    if _nmem["data"] is not None and time.time() - _nmem["t"] < 300:
+        return _nmem["data"]
+    data, cache, local = None, os.path.join(BASE, "new_cache.json"), os.path.join(BASE, "new.json")
+    tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
+    if tok and repo:
+        try:
+            r = requests.get(f"https://api.github.com/repos/{repo}/contents/new.json",
+                             headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github.raw"}, timeout=20)
+            if r.ok:
+                data = _clean(json.loads(r.text))
+                with open(cache, "w") as f:
+                    json.dump(data, f)
+        except Exception:
+            data = None
+    if data is None:
+        for pth in (cache, local):
+            if os.path.exists(pth):
+                try:
+                    with open(pth) as f:
+                        data = _clean(json.load(f)); break
+                except Exception:
+                    pass
+    if data is None:
+        data = {"updated": None, "stocks": []}
+    _nmem.update(t=time.time(), data=data)
+    return data
+
+
+def get_data():
+    """Daily data.json + live new-listing rows (new.json). New symbols are added, known ones get fresher price."""
+    base = _get_base_data()
+    nw = get_new()
+    rows = nw.get("stocks") or []
+    if not rows:
+        return base
+    key = (id(base), nw.get("updated"))
+    if _gmem["key"] == key:
+        return _gmem["data"]
+    stocks = list(base.get("stocks", []))
+    idx = {x["symbol"]: i for i, x in enumerate(stocks)}
+    for r in rows:
+        i = idx.get(r["symbol"])
+        if i is None:
+            stocks.append(r)
+        else:
+            b = dict(stocks[i])
+            for k in ("price", "chg", "live", "live_ts", "intra", "listing"):
+                if r.get(k) is not None:
+                    b[k] = r[k]
+            stocks[i] = b
+    merged = dict(base); merged["stocks"] = stocks; merged["new_updated"] = nw.get("updated")
+    _gmem.update(key=key, data=merged)
+    return merged
 
 
 _bmem = {"t": 0, "data": None}
@@ -393,7 +454,12 @@ def stage2():
 
 @app.route("/journal")
 def journal():
-    return render_template("journal.html", active="journal")
+    return render_template("journal.html", active="journal", start="trades")
+
+
+@app.route("/plan")
+def plan_page():
+    return render_template("journal.html", active="plan", start="plan")
 
 
 @app.route("/stock")
