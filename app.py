@@ -243,6 +243,49 @@ def get_backtest():
     return data
 
 
+_omem = {"t": 0, "data": None}
+
+
+def get_openzone():
+    """openzone.json (GitHub, else saved copy). Never raises."""
+    if _omem["data"] is not None and time.time() - _omem["t"] < 3600:
+        return _omem["data"]
+    data, cache, local = None, os.path.join(BASE, "openzone_cache.json"), os.path.join(BASE, "openzone.json")
+    tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
+    if tok and repo:
+        try:
+            r = requests.get(f"https://api.github.com/repos/{repo}/contents/openzone.json",
+                             headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github.raw"}, timeout=30)
+            if r.ok:
+                data = _clean(json.loads(r.text))
+                with open(cache, "w") as f:
+                    json.dump(data, f)
+        except Exception:
+            data = None
+    if data is None:
+        for pth in (cache, local):
+            if os.path.exists(pth):
+                try:
+                    with open(pth) as f:
+                        data = _clean(json.load(f)); break
+                except Exception:
+                    pass
+    if data is None:
+        data = {"updated": None, "indices": {}}
+    _omem.update(t=time.time() if data["updated"] else time.time() - 3300, data=data)
+    return data
+
+
+@app.route("/api/openzone")
+def api_openzone():
+    return jsonify(get_openzone())
+
+
+@app.route("/openzone")
+def openzone_page():
+    return render_template("openzone.html", active="openzone", updated=get_data()["updated"])
+
+
 @app.route("/api/backtest")
 def api_backtest():
     return jsonify(get_backtest())
