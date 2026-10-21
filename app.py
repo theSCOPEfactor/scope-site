@@ -210,6 +210,44 @@ def get_details():
     return data
 
 
+_bmem = {"t": 0, "data": None}
+
+
+def get_backtest():
+    """backtest.json (GitHub, else saved copy). Never raises."""
+    if _bmem["data"] is not None and time.time() - _bmem["t"] < 3600:
+        return _bmem["data"]
+    data, cache, local = None, os.path.join(BASE, "backtest_cache.json"), os.path.join(BASE, "backtest.json")
+    tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
+    if tok and repo:
+        try:
+            r = requests.get(f"https://api.github.com/repos/{repo}/contents/backtest.json",
+                             headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github.raw"}, timeout=30)
+            if r.ok:
+                data = _clean(json.loads(r.text))
+                with open(cache, "w") as f:
+                    json.dump(data, f)
+        except Exception:
+            data = None
+    if data is None:
+        for pth in (cache, local):
+            if os.path.exists(pth):
+                try:
+                    with open(pth) as f:
+                        data = _clean(json.load(f)); break
+                except Exception:
+                    pass
+    if data is None:
+        data = {"updated": None, "rows": [], "by_stock": {}}
+    _bmem.update(t=time.time() if data["updated"] else time.time() - 3300, data=data)
+    return data
+
+
+@app.route("/api/backtest")
+def api_backtest():
+    return jsonify(get_backtest())
+
+
 def _norm(s):
     return re.sub(r"[^a-z0-9]", "", str(s).lower().replace("&", "and"))
 
@@ -271,6 +309,7 @@ def api_detail(sym):
         "member_of": member,
         "peers": peers,
         "peers_industry": ind or None,
+        "history": get_backtest().get("by_stock", {}).get(sym),
         "details_updated": det.get("updated"),
         "updated": d.get("updated"),
     })
@@ -323,6 +362,11 @@ def stock_page(sym=""):
 @app.route("/index/<path:name>")
 def index_page(name):
     return render_template("index.html", active="home", name=name, updated=get_data()["updated"])
+
+
+@app.route("/backtest")
+def backtest_page():
+    return render_template("backtest.html", active="backtest", updated=get_data()["updated"])
 
 
 @app.route("/sectors")
