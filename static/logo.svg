@@ -3,311 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>SCOPE</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<title>Scope logo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap">
 <style>
-:root {
-  --bg: #0a0f1a;
-  --fg: #edeff5;
-  --mut: #8b9bb4;
-  color-scheme: dark;
-  box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-html, body {
-  height: 100%;
-  margin: 0;
-}
-body {
-  background: radial-gradient(ellipse at center, #0f172a 0%, #0a0f1a 70%);
-  color: var(--fg);
-  font-family: 'Inter', system-ui, sans-serif;
-  display: grid;
-  place-items: center;
-  overflow-x: hidden;
-}
-.stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(18px, 3.5vw, 28px);
-  padding: 24px;
-}
-svg {
-  width: min(72vw, 340px);
-  height: auto;
-  cursor: crosshair;
-  touch-action: manipulation;
-  overflow: visible;
-  outline: none;
-  filter: drop-shadow(0 0 30px rgba(59, 160, 232, 0.25));
-}
-svg:focus-visible {
-  outline: 2px solid #3AA0E8;
-  outline-offset: 10px;
-  border-radius: 50%;
-}
-.ring {
-  transform-origin: 150px 150px;
-  animation: spin 55s linear infinite;
-}
-.ring.b {
-  animation-duration: 85s;
-  animation-direction: reverse;
-}
-@keyframes spin {
-  from { transform: rotate(var(--r)); }
-  to   { transform: rotate(calc(var(--r) + 360deg)); }
-}
-.core {
-  transform-origin: 150px 150px;
-  animation: pulse 2.8s ease-in-out infinite;
-}
-@keyframes pulse {
-  50% { transform: scale(1.18); opacity: 0.9; }
-}
-.line {
-  position: relative;
-  display: inline-block;
-  margin: 0;
-  font-weight: 400;
-  cursor: text;
-}
-.full {
-  visibility: hidden;
-  white-space: nowrap;
-}
-.typed {
-  position: absolute;
-  left: 0;
-  top: 0;
-  white-space: nowrap;
-}
-.word {
-  font-weight: 700;
-  font-size: clamp(38px, 10.5vw, 64px);
-  letter-spacing: 0.28em;
-  line-height: 1.1;
-  color: #ffffff;
-}
-.tag {
-  font-size: clamp(12px, 3.2vw, 16px);
-  letter-spacing: 0.22em;
-  color: var(--mut);
-  font-weight: 500;
-}
-.caret {
-  display: inline-block;
-  width: 0.45em;
-  height: 0.9em;
-  background: currentColor;
-  vertical-align: -0.08em;
-  margin-left: 0.06em;
-  animation: blink 1s steps(1) infinite;
-}
-@keyframes blink {
-  50% { opacity: 0; }
-}
-.hint {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  text-align: center;
-  font-size: 12px;
-  color: var(--mut);
-  letter-spacing: 0.04em;
-  margin: 0;
-  opacity: 0.85;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ring, .core, .caret { animation: none; }
-}
+:root{--bg:#f3f5f8;--fg:#0f1620;--mut:#52606f;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e1320;--fg:#edeff5;--mut:#9aa7b8;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1320;--fg:#edeff5;--mut:#9aa7b8;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:'Courier Prime','Courier New',Courier,monospace;display:grid;place-items:center;overflow-x:hidden}
+.stack{display:flex;flex-direction:column;align-items:center;gap:clamp(14px,3vw,22px);padding:24px}
+svg{width:min(68vw,320px);height:auto;cursor:crosshair;touch-action:manipulation;overflow:visible;outline:none}
+svg:focus-visible{outline:2px solid #3AA0E8;outline-offset:8px;border-radius:50%}
+.ring{transform-origin:150px 150px;animation:spin 60s linear infinite}
+.ring.b{animation-duration:90s;animation-direction:reverse}
+@keyframes spin{from{transform:rotate(var(--r))}to{transform:rotate(calc(var(--r) + 360deg))}}
+.core{transform-origin:150px 150px;animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.25);opacity:.75}}
+.line{position:relative;display:inline-block;margin:0;font-weight:400;cursor:text}
+.full{visibility:hidden;white-space:nowrap}
+.typed{position:absolute;left:0;top:0;white-space:nowrap}
+.word{font-weight:700;font-size:clamp(36px,10vw,60px);letter-spacing:.3em;line-height:1.1}
+.tag{font-size:clamp(11px,3.1vw,17px);letter-spacing:.2em;color:var(--mut)}
+.caret{display:inline-block;width:.5em;height:.95em;background:currentColor;vertical-align:-.1em;margin-left:.08em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.hint{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));text-align:center;font-size:12px;color:var(--mut);letter-spacing:.04em;margin:0}
+@media (prefers-reduced-motion: reduce){.ring,.core,.caret{animation:none}}
 </style>
 </head>
 <body>
 <main class="stack">
-  <svg id="logo" viewBox="0 0 300 300" tabindex="0" role="img"
-       aria-label="Scope: a glowing target with an arrow. Move the pointer to aim, click to fire.">
+  <svg id="logo" viewBox="0 0 300 300" tabindex="0" role="img" aria-label="Scope: a target with an arrow. Move the pointer to aim, click to fire.">
     <defs>
-      <!-- Main ring gradient -->
       <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="40" y1="40" x2="260" y2="260">
-        <stop offset="0%"   stop-color="#2BD9B8"/>
-        <stop offset="45%"  stop-color="#3AA0E8"/>
-        <stop offset="100%" stop-color="#FF9A4D"/>
+        <stop offset="0" stop-color="#2BD9B8"/><stop offset=".55" stop-color="#3AA0E8"/><stop offset="1" stop-color="#FF9A4D"/>
       </linearGradient>
-      <!-- Arrow gradient -->
       <linearGradient id="ag" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%"   stop-color="#FF8A3D"/>
-        <stop offset="100%" stop-color="#FFC27A"/>
+        <stop offset="0" stop-color="#FF8A3D"/><stop offset="1" stop-color="#FFC27A"/>
       </linearGradient>
-      <!-- Core glow -->
-      <radialGradient id="coreGrad">
-        <stop offset="0%"   stop-color="#ffffff"/>
-        <stop offset="35%"  stop-color="#5eead4"/>
-        <stop offset="70%"  stop-color="#2BD9B8"/>
-        <stop offset="100%" stop-color="#2BD9B8" stop-opacity="0"/>
-      </radialGradient>
-      <!-- Soft outer glow -->
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
+      <radialGradient id="core"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#5eead4"/><stop offset="1" stop-color="#2BD9B8" stop-opacity="0"/></radialGradient>
     </defs>
 
-    <!-- Soft ambient rings -->
-    <g fill="none" stroke="url(#g)" stroke-linecap="round" filter="url(#glow)">
-      <circle class="ring"   style="--r:-18deg" cx="150" cy="150" r="108" stroke-width="7"  stroke-dasharray="480 160" opacity="0.9"/>
-      <circle class="ring b" style="--r: 32deg" cx="150" cy="150" r="82"  stroke-width="6.5" stroke-dasharray="310 175" opacity="0.95"/>
-      <circle class="ring"   style="--r:-72deg" cx="150" cy="150" r="56"  stroke-width="6"   stroke-dasharray="210 130"/>
-      <circle class="ring b" style="--r:110deg" cx="150" cy="150" r="32"  stroke-width="5.5" stroke-dasharray="130 55"/>
-      
-      <!-- Elegant orbit swoosh -->
-      <ellipse cx="150" cy="150" rx="128" ry="36"
-               transform="rotate(-26 150 150)"
-               stroke-width="8"
-               stroke-dasharray="220 360"
-               stroke-dashoffset="-140"
-               opacity="0.85"/>
+    <!-- abstract broken rings -->
+    <g fill="none" stroke="url(#g)" stroke-linecap="round">
+      <circle class="ring" style="--r:-24deg" cx="150" cy="150" r="100" stroke-width="8" stroke-dasharray="470 158"/>
+      <circle class="ring b" style="--r:40deg" cx="150" cy="150" r="76" stroke-width="7" stroke-dasharray="300 177.5"/>
+      <circle class="ring" style="--r:-80deg" cx="150" cy="150" r="52" stroke-width="6" stroke-dasharray="200 126.7"/>
+      <circle class="ring b" style="--r:120deg" cx="150" cy="150" r="28" stroke-width="5" stroke-dasharray="120 56"/>
+      <!-- orbit swoosh -->
+      <ellipse cx="150" cy="150" rx="125" ry="38" transform="rotate(-28 150 150)" stroke-width="9" stroke-dasharray="216 366" stroke-dashoffset="-145"/>
+      <!-- crosshair ticks -->
+      <path stroke-width="4" d="M150 22V40M150 260V278M22 150H40M260 150H278"/>
     </g>
 
-    <!-- Glowing core -->
-    <circle class="core" cx="150" cy="150" r="26" fill="url(#coreGrad)" filter="url(#glow)"/>
-    <circle cx="150" cy="150" r="8" fill="#ffffff" opacity="0.95"/>
+    <circle class="core" cx="150" cy="150" r="22" fill="url(#core)"/>
+    <circle cx="150" cy="150" r="6" fill="#fff" opacity=".92"/>
+    <circle id="rip" cx="150" cy="150" r="12" fill="none" stroke="#FF9A4D" stroke-width="3" opacity="0" style="transform-box:fill-box;transform-origin:center"/>
 
-    <!-- Fire ripple -->
-    <circle id="rip" cx="150" cy="150" r="14" fill="none"
-            stroke="#FF9A4D" stroke-width="3.5" opacity="0"
-            style="transform-box: fill-box; transform-origin: center"/>
-
-    <!-- Interactive arrow -->
+    <!-- interactive arrow -->
     <g id="aim" transform="translate(150 150) rotate(-42)">
       <g id="shaft">
-        <!-- Shaft -->
-        <path d="M-96 9 Q-18 13 78 -3"
-              fill="none"
-              stroke="url(#ag)"
-              stroke-width="9.5"
-              stroke-linecap="round"
-              filter="url(#glow)"/>
-        <!-- Arrow head -->
-        <path d="M72 -24 L122 -3 L74 20 Q86 -3 72 -24Z"
-              fill="url(#ag)"
-              stroke="#FFB46B"
-              stroke-width="2"
-              stroke-linejoin="round"
-              filter="url(#glow)"/>
+        <path d="M-92 10 Q-20 14 74 -2" fill="none" stroke="url(#ag)" stroke-width="9" stroke-linecap="round"/>
+        <path d="M68 -22 L114 -2 L70 18 Q82 -2 68 -22Z" fill="url(#ag)" stroke="#FFB46B" stroke-width="2" stroke-linejoin="round"/>
       </g>
     </g>
   </svg>
 
-  <h1 class="line word" data-t="SCOPE" data-d="130" aria-label="Scope">
-    <span class="full" aria-hidden="true">SCOPE</span>
-    <span class="typed" aria-hidden="true"></span>
-  </h1>
-
-  <p class="line tag" data-t="PRECISION. VISION. SUCCESS." data-d="55"
-     aria-label="Precision. Vision. Success.">
-    <span class="full" aria-hidden="true">PRECISION. VISION. SUCCESS.</span>
-    <span class="typed" aria-hidden="true"></span>
-  </p>
+  <h1 class="line word" data-t="SCOPE" data-d="140" aria-label="Scope"><span class="full" aria-hidden="true">SCOPE</span><span class="typed" aria-hidden="true"></span></h1>
+  <p class="line tag" data-t="PRECISION. VISION. SUCCESS." data-d="60" aria-label="Precision. Vision. Success."><span class="full" aria-hidden="true">PRECISION. VISION. SUCCESS.</span><span class="typed" aria-hidden="true"></span></p>
 </main>
-
-<p class="hint">Move your pointer to aim the arrow · Click the symbol to fire · Click the text to retype</p>
+<p class="hint">Move your pointer to aim the arrow. Click the symbol to fire, or click the text to retype it.</p>
 
 <script>
-const $ = s => document.querySelector(s);
-const svg = $('#logo');
-const aim = $('#aim');
-const shaft = $('#shaft');
-const rip = $('#rip');
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $=s=>document.querySelector(s), svg=$('#logo'), aim=$('#aim'), shaft=$('#shaft'), rip=$('#rip');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-/* Aiming */
-let cur = -42, target = -42, active = false;
-
-addEventListener('pointermove', e => {
-  const r = svg.getBoundingClientRect();
-  active = true;
-  target = Math.atan2(
-    e.clientY - (r.top + r.height / 2),
-    e.clientX - (r.left + r.width / 2)
-  ) * 180 / Math.PI;
-});
-
-document.documentElement.addEventListener('mouseleave', () => active = false);
-
-(function tick(now) {
-  const idle = reduce ? -42 : -42 + Math.sin(now / 1400) * 4.5;
-  const tg = active ? target : idle;
-  cur += (((tg - cur + 540) % 360) - 180) * 0.13;
-  aim.setAttribute('transform', `translate(150 150) rotate(${cur.toFixed(2)})`);
+/* aim */
+let cur=-42,target=-42,active=false;
+addEventListener('pointermove',e=>{const r=svg.getBoundingClientRect();active=true;target=Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2))*180/Math.PI});
+document.documentElement.addEventListener('mouseleave',()=>active=false);
+(function tick(now){
+  const idle=reduce?-42:-42+Math.sin(now/1400)*5, tg=active?target:idle;
+  cur+=(((tg-cur+540)%360)-180)*.12;
+  aim.setAttribute('transform','translate(150 150) rotate('+cur.toFixed(2)+')');
   requestAnimationFrame(tick);
 })(0);
 
-/* Fire */
-function fire() {
-  shaft.animate([
-    { transform: 'translateX(0)' },
-    { transform: 'translateX(-20px)', offset: 0.28 },
-    { transform: 'translateX(28px)', offset: 0.55 },
-    { transform: 'translateX(0)' }
-  ], { duration: 680, easing: 'cubic-bezier(.2,.7,.2,1)' });
-
-  rip.animate([
-    { transform: 'scale(1)', opacity: 0.95 },
-    { transform: 'scale(10)', opacity: 0 }
-  ], { duration: 850, easing: 'ease-out' });
+/* fire */
+function fire(){
+  shaft.animate([{transform:'translateX(0)'},{transform:'translateX(-18px)',offset:.3},{transform:'translateX(24px)',offset:.55},{transform:'translateX(0)'}],{duration:650,easing:'cubic-bezier(.2,.7,.2,1)'});
+  rip.animate([{transform:'scale(1)',opacity:.95},{transform:'scale(9)',opacity:0}],{duration:800,easing:'ease-out'});
 }
+svg.addEventListener('click',fire);
+svg.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire()}});
 
-svg.addEventListener('click', fire);
-svg.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault();
-    fire();
-  }
-});
-
-/* Typewriter */
-const lines = [...document.querySelectorAll('.line')];
-const caret = Object.assign(document.createElement('span'), { className: 'caret' });
-let run = 0;
-
-async function typeAll() {
-  const id = ++run;
-  lines.forEach(l => l.querySelector('.typed').replaceChildren());
-
-  for (const l of lines) {
-    const full = l.dataset.t;
-    const box = l.querySelector('.typed');
-    const tn = document.createTextNode('');
-    box.replaceChildren(tn, caret);
-
-    if (reduce) {
-      tn.data = full;
-      continue;
+/* typewriter */
+const lines=[...document.querySelectorAll('.line')];
+const caret=Object.assign(document.createElement('span'),{className:'caret'});
+let run=0;
+async function typeAll(){
+  const id=++run;
+  lines.forEach(l=>l.querySelector('.typed').replaceChildren());
+  for(const l of lines){
+    const full=l.dataset.t, box=l.querySelector('.typed'), tn=document.createTextNode('');
+    box.replaceChildren(tn,caret);
+    if(reduce){tn.data=full;continue}
+    for(let i=1;i<=full.length;i++){
+      if(id!==run) return;
+      tn.data=full.slice(0,i);
+      await sleep(+l.dataset.d*(.7+Math.random()*.7));
     }
-
-    for (let i = 1; i <= full.length; i++) {
-      if (id !== run) return;
-      tn.data = full.slice(0, i);
-      await sleep(+l.dataset.d * (0.65 + Math.random() * 0.7));
-    }
-    await sleep(380);
+    await sleep(350);
   }
 }
-
-document.querySelector('.stack').addEventListener('click', e => {
-  if (e.target.closest('.line')) typeAll();
-});
-
-(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve())
-  .then(() => setTimeout(typeAll, 280));
+document.querySelector('.stack').addEventListener('click',e=>{if(e.target.closest('.line'))typeAll()});
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>setTimeout(typeAll,300));
 </script>
 </body>
 </html>
