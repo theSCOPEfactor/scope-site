@@ -10,6 +10,9 @@ Kya stocks:
   3. data.json ma je stock ni history 20 divas thi ochhi che (new)
 Output: new.json   (website e vanche che)
 
+BSE-only stocks (jem NSE pote): pehla NSE ma shodhe, na male to BSE ma shodhe.
+watch.txt ma naam (NSE) ke BSE scrip code (544937) lakhi shako.
+
 Secrets: ANGEL_API_KEY, ANGEL_CLIENT_CODE, ANGEL_PASSWORD, ANGEL_TOTP_SECRET
 Optional env: EXTRA_SYMBOLS="ABC,XYZ" (manual run mate)
 """
@@ -72,11 +75,61 @@ def read_json(path, default):
         return default
 
 
+def clean_name(ln):
+    """watch.txt line -> saaf naam. '544937.BO' -> '544937', 'ABC-EQ' -> 'ABC'."""
+    ln = ln.split("#")[0].strip().upper()
+    ln = ln.replace("-EQ", "")
+    for suf in (".BO", ".NS"):
+        if ln.endswith(suf):
+            ln = ln[: -len(suf)]
+    return ln
+
+
 def pick_token(rows, name):
-    """Symbol na naam thi NSE token: EQ pehla, pachhi bija series."""
-    c = [r for r in rows if r.get("exch_seg") == "NSE" and r.get("name") == name]
-    c.sort(key=lambda r: (0 if str(r.get("symbol", "")).endswith("-EQ") else 1))
-    return c[0]["token"] if c else None
+    """NSE pehla (jem pehla hatu), na male to BSE. Return (exchange, token).
+    BSE ma naam, symbol ke scrip code (token) thi match thay."""
+    for exch in ("NSE", "BSE"):
+        if exch == "NSE":
+            c = [r for r in rows if r.get("exch_seg") == "NSE" and r.get("name") == name]
+        else:
+            c = [r for r in rows if r.get("exch_seg") == "BSE"
+                 and (r.get("name") == name or r.get("symbol") == name
+                      or str(r.get("token")) == name)]
+        c.sort(key=lambda r: (0 if str(r.get("symbol", "")).endswith("-EQ") else 1))
+        if c:
+            return exch, c[0]["token"]
+    return None, None
+
+
+def fetch_bse_5min(api, token, days=30):
+    """BSE stock na 5-min candles (fakat BSE-only stocks mate vaprase).
+    Return DataFrame: ts, o, h, l, c, v  (build_row ne jevu joiye tevu)."""
+    try:
+        to = dt.datetime.now()
+        frm = to - dt.timedelta(days=days)
+        params = {
+            "exchange": "BSE",
+            "symboltoken": str(token),
+            "interval": "FIVE_MINUTE",
+            "fromdate": frm.strftime("%Y-%m-%d 09:15"),
+            "todate": to.strftime("%Y-%m-%d 15:30"),
+        }
+        res = api.getCandleData(params)
+        data = (res or {}).get("data") or []
+        if not data:
+            return None
+        df = pd.DataFrame(data, columns=["ts", "o", "h", "l", "c", "v"])
+        df["ts"] = pd.to_datetime(df["ts"])
+        try:
+            df["ts"] = df["ts"].dt.tz_localize(None)   # local (IST) time rakho
+        except (TypeError, AttributeError):
+            pass
+        for k in ("o", "h", "l", "c", "v"):
+            df[k] = pd.to_numeric(df[k], errors="coerce")
+        return df.dropna()
+    except Exception as e:
+        print("BSE candle error:", token, e)
+        return None
 
 
 def main():
@@ -85,7 +138,7 @@ def main():
     rows = requests.get(SCRIP_URL, timeout=180).json()
     today = dt.date.today().isoformat()
 
-    # 1) navi tokens
+    # 1) navi tokens (fakat NSE, pehla jevu j)
     cur = {}
     for r in rows:
         if r.get("exch_seg") == "NSE" and "-" in str(r.get("symbol", "")) \
@@ -108,10 +161,10 @@ def main():
     names = [v["symbol"] for v in st["recent"].values()]
     if os.path.exists(WATCH):
         for ln in open(WATCH):
-            ln = ln.split("#")[0].strip().upper()
-            if ln:
-                names.append(ln.replace("-EQ", ""))
-    names += [x.strip().upper() for x in os.environ.get("EXTRA_SYMBOLS", "").split(",") if x.strip()]
+            n = clean_name(ln)
+            if n:
+                names.append(n)
+    names += [clean_name(x) for x in os.environ.get("EXTRA_SYMBOLS", "").split(",") if x.strip()]
     # 3) data.json ma ochha divas vala
     data = read_json(os.path.join(ROOT, "data.json"), {"stocks": []})
     for s in data.get("stocks", []):
@@ -119,7 +172,7 @@ def main():
             names.append(s["symbol"])
     seen, watch = set(), []
     for n in names:
-        if n not in seen:
+        if n and n not in seen:
             seen.add(n); watch.append(n)
     watch = watch[:MAX_WATCH]
     print("Watch:", watch)
@@ -128,10 +181,15 @@ def main():
     if watch:
         api = login()
         for n in watch:
-            tok = pick_token(rows, n)
+            exch, tok = pick_token(rows, n)
             if not tok:
                 out["missing"].append(n); print("master ma nathi:", n); continue
-            m5 = fetch_hourly(api, tok, interval="FIVE_MINUTE", days=30); time.sleep(SLEEP)
+            if exch == "NSE":
+                # NSE stocks: pehla jevu j, koi badlav nahi
+                m5 = fetch_hourly(api, tok, interval="FIVE_MINUTE", days=30); time.sleep(SLEEP)
+            else:
+                print("BSE-only stock:", n, "token", tok)
+                m5 = fetch_bse_5min(api, tok, days=30); time.sleep(SLEEP)
             if m5 is None or len(m5) < 2:
                 out["missing"].append(n); print("candle nathi:", n); continue
             r = build_row(n, m5)
