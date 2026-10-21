@@ -493,3 +493,13 @@ body.mini #data-badge { display:none; }
   main, .side { animation:none !important; }
   .card:hover, .tile:hover { transform:none; }
 }
+
+/* =========================================================
+   Scope · Tagline "PRECISION. VISION. SUCCESS." fit
+   (tagline is longer than the old one, so it may wrap on 2 lines)
+   ========================================================= */
+.side .typer{white-space:normal;line-height:1.6;min-height:27px;letter-spacing:.24em}
+.hero .typer,.login .hero .typer{white-space:normal;line-height:1.6}
+@media(max-width:760px){
+  .hero .typer{letter-spacing:.28em}
+}
