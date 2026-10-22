@@ -276,3 +276,27 @@ body.mini .menu a:hover::after,body.mini .side .brand:hover::after,body.mini .co
 .newsi:hover{background:var(--glass-h);transform:translateX(3px)}
 .newsi em{font-style:normal;color:var(--mut);font-size:12px}
 tr.idx{cursor:pointer}
+
+/* back button */
+.backbtn{display:inline-flex;align-items:center;gap:5px;margin:0 0 10px;padding:5px 12px 5px 8px;font-size:13px;color:var(--mut);
+  background:var(--glass);border:1px solid var(--stroke);border-radius:999px;text-decoration:none;transition:all .2s}
+.backbtn:hover{color:var(--tx);border-color:rgba(255,255,255,.3);transform:translateX(-2px)}
+
+/* accounts */
+.okmsg{margin:0;padding:9px 12px;border-radius:10px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.35);color:var(--gold);font-size:13px;text-align:center}
+.reg{max-width:760px;margin:0 auto}
+.sec{margin:20px 0 10px;font-size:14px;color:var(--tx);border-bottom:1px solid var(--stroke);padding-bottom:6px}
+.plans{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.plan{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--stroke);border-radius:14px;cursor:pointer;background:var(--glass);position:relative}
+.plan input{position:absolute;right:12px;top:12px}
+.plan:has(input:checked){border-color:#60a5fa;box-shadow:0 0 0 1px #60a5fa inset}
+.plan span{font-size:18px;font-weight:700}.plan small{color:var(--mut)}
+.cam video,.cam img{width:100%;max-width:320px;border-radius:14px;display:block;border:1px solid var(--stroke)}
+.reg select,.reg input[type=text],.reg input:not([type]),.reg input[type=email],.reg input[type=date]{width:100%}
+.plancard{border-left:4px solid var(--pos)}.plancard.warnb{border-left-color:var(--gold)}.plancard.bad{border-left-color:var(--neg)}
+.plancard .big{font-size:18px;font-weight:600}
+.prof{display:flex;gap:18px;flex-wrap:wrap}.pic{width:130px;height:130px;object-fit:cover;border-radius:16px;border:1px solid var(--stroke)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;flex:1}.pgrid .wide{grid-column:1/-1}
+.pgrid small{display:block;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.topban{margin:0 0 12px;padding:9px 14px;border-radius:12px;background:rgba(245,192,74,.12);border:1px solid rgba(245,192,74,.35);color:var(--gold);font-size:13px}
+@media(max-width:640px){.plans{grid-template-columns:1fr}.form{grid-template-columns:1fr}}
