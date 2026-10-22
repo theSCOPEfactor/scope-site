@@ -76,6 +76,11 @@ def init_db():
     );
     INSERT OR IGNORE INTO settings VALUES('capital','1000000');
     """)
+    for col in ("manual_price REAL", "manual_date TEXT"):      # unlisted shares mate haath thi price
+        try:
+            con.execute("ALTER TABLE holdings ADD COLUMN " + col)
+        except Exception:
+            pass
     con.commit(); con.close()
 
 
@@ -675,7 +680,9 @@ def api_holdings():
         h = dict(r)
         s = stocks.get(h["symbol"]) or {}
         h.update(ltp=s.get("price"), chg=s.get("chg"), stage=s.get("stage"), rs=s.get("rs"), zone=s.get("zone"),
-                 vlow=s.get("vlow"), vhigh=s.get("vhigh"), known=bool(s))
+                 vlow=s.get("vlow"), vhigh=s.get("vhigh"), known=bool(s), manual=False)
+        if not s and h.get("manual_price"):                 # exchange par nathi (unlisted) -> tamaro nakhelo price
+            h.update(ltp=h["manual_price"], manual=True)
         out.append(h)
     return jsonify({"holdings": out, "updated": data.get("updated")})
 
@@ -686,8 +693,10 @@ def api_holding_add():
     sym, qty, avg = _norm_sym(d.get("symbol")), _num(d.get("qty")), _num(d.get("avg_price"))
     if not sym or not qty or qty <= 0 or not avg or avg <= 0:
         return jsonify(ok=False, error="Symbol, quantity and average price are required"), 400
-    db().execute("INSERT INTO holdings(symbol,qty,avg_price,buy_date,stoploss,target,note) VALUES(?,?,?,?,?,?,?)",
-                 (sym, qty, avg, d.get("buy_date") or None, _num(d.get("stoploss")), _num(d.get("target")), d.get("note", "")))
+    mp = _num(d.get("manual_price"))
+    db().execute("INSERT INTO holdings(symbol,qty,avg_price,buy_date,stoploss,target,note,manual_price,manual_date) VALUES(?,?,?,?,?,?,?,?,?)",
+                 (sym, qty, avg, d.get("buy_date") or None, _num(d.get("stoploss")), _num(d.get("target")), d.get("note", ""),
+                  mp, dt.date.today().isoformat() if mp else None))
     db().commit()
     return jsonify(ok=True)
 
@@ -701,9 +710,12 @@ def api_holding_edit(hid):
         sym, qty, avg = _norm_sym(d.get("symbol")), _num(d.get("qty")), _num(d.get("avg_price"))
         if not sym or not qty or qty <= 0 or not avg or avg <= 0:
             return jsonify(ok=False, error="Symbol, quantity and average price are required"), 400
-        db().execute("UPDATE holdings SET symbol=?,qty=?,avg_price=?,buy_date=?,stoploss=?,target=?,note=? WHERE id=?",
+        mp = _num(d.get("manual_price"))
+        old = db().execute("SELECT manual_price, manual_date FROM holdings WHERE id=?", (hid,)).fetchone()
+        mdate = (old["manual_date"] if old and old["manual_price"] == mp else dt.date.today().isoformat()) if mp else None
+        db().execute("UPDATE holdings SET symbol=?,qty=?,avg_price=?,buy_date=?,stoploss=?,target=?,note=?,manual_price=?,manual_date=? WHERE id=?",
                      (sym, qty, avg, d.get("buy_date") or None, _num(d.get("stoploss")), _num(d.get("target")),
-                      d.get("note", ""), hid))
+                      d.get("note", ""), mp, mdate, hid))
     db().commit()
     return jsonify(ok=True)
 
