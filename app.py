@@ -89,11 +89,13 @@ def init_db(path=None):
       target REAL,
       note TEXT DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS execs(k TEXT PRIMARY KEY);
     INSERT OR IGNORE INTO settings VALUES('capital','1000000');
     """)
-    for col in ("manual_price REAL", "manual_date TEXT"):      # unlisted shares mate haath thi price
+    for tbl, col in (("holdings", "manual_price REAL"), ("holdings", "manual_date TEXT"),
+                     ("trades", "charges REAL")):      # charges NULL = auto estimate
         try:
-            con.execute("ALTER TABLE holdings ADD COLUMN " + col)
+            con.execute("ALTER TABLE %s ADD COLUMN %s" % (tbl, col))
         except Exception:
             pass
     con.commit(); con.close()
@@ -506,7 +508,7 @@ def get_capital():
 
 
 def pnl_of(t, ltp):
-    """return (pnl, pct_move, exit_or_ltp)"""
+    """return (gross pnl, pct_move, exit_or_ltp)"""
     px = t["exit_price"] if t["exit_price"] is not None else ltp
     if px is None:
         return 0.0, 0.0, None
@@ -514,6 +516,58 @@ def pnl_of(t, ltp):
     pnl = (px - t["entry_price"]) * t["qty"] * sign
     pct = (px / t["entry_price"] - 1) * 100 * sign
     return pnl, pct, px
+
+
+def get_brokerage():
+    """(delivery per order, intraday per order cap) in Rs - settings ma thi"""
+    out = []
+    for k, d in (("brk_del", 0.0), ("brk_intra", 20.0)):
+        r = db().execute("SELECT v FROM settings WHERE k=?", (k,)).fetchone()
+        try:
+            out.append(float(r["v"]) if r else d)
+        except ValueError:
+            out.append(d)
+    return out
+
+
+def est_charges(t, brk):
+    """Estimated taxes + charges (Rs) for one cash trade (NSE equity, approx).
+    Rates badlay to code ma upar na numbers sudharo. F&O ma 0 (manual lakho)."""
+    if t.get("kind") != "C":
+        return 0.0
+    q, ep = t["qty"], t["entry_price"]
+    closed = t.get("exit_price") is not None
+    intraday = closed and t.get("exit_date") and t["exit_date"] == t["entry_date"]
+    legs = [("B" if t["dir"] == "L" else "S", ep * q)]
+    if closed:
+        legs.append(("S" if t["dir"] == "L" else "B", t["exit_price"] * q))
+    tot = 0.0
+    for side, v in legs:
+        brokerage = min(brk[1], 0.0003 * v) if intraday else brk[0]
+        if brokerage and brk[0] == 0 and not intraday:
+            brokerage = 0
+        txn = 0.0000297 * v                      # exchange transaction charge
+        sebi = 0.000001 * v                      # Rs 10 per crore
+        gst = 0.18 * (brokerage + txn + sebi)
+        if intraday:
+            stt = 0.00025 * v if side == "S" else 0.0
+            stamp = 0.00003 * v if side == "B" else 0.0
+        else:
+            stt = 0.001 * v
+            stamp = 0.00015 * v if side == "B" else 0.0
+        dp = 15.93 if (not intraday and side == "S" and t["dir"] == "L") else 0.0   # DP charge on sell
+        tot += brokerage + txn + sebi + gst + stt + stamp + dp
+    return round(tot, 2)
+
+
+def net_of(t, ltp, brk):
+    """(gross, charges, net, pct, px, charges_is_auto)"""
+    gross, pct, px = pnl_of(t, ltp)
+    if px is None:
+        return 0.0, 0.0, 0.0, 0.0, None, True
+    auto = t.get("charges") is None
+    ch = est_charges(t, brk) if auto else float(t["charges"])
+    return gross, ch, gross - ch, pct, px, auto
 
 
 def days_between(a, b):
@@ -530,14 +584,15 @@ def api_journal():
     today = dt.date.today().isoformat()
     rows = db().execute("SELECT * FROM trades ORDER BY entry_date DESC, id DESC").fetchall()
 
+    brk = get_brokerage()
     out, month_totals = [], defaultdict(float)
-    realized = unreal = 0.0
+    realized = unreal = gross_real = ch_real = 0.0
     wins, losses = [], []
     exposure, open_n = 0.0, 0
     for r in rows:
         t = dict(r)
         ltp = prices.get(t["symbol"])
-        pnl, pct, px = pnl_of(t, ltp)
+        gross, ch, pnl, pct, px, auto = net_of(t, ltp, brk)
         closed = t["exit_price"] is not None
         if closed:
             month_totals[t["exit_date"][:7]] += pnl
@@ -548,10 +603,11 @@ def api_journal():
         if not in_month:
             continue
         held = days_between(t["entry_date"], t["exit_date"] if closed else today)
-        t.update(pnl=round(pnl, 2), pct=round(pct, 2), px=px, closed=closed, held=held)
+        t.update(pnl=round(pnl, 2), gross=round(gross, 2), ch=round(ch, 2), ch_auto=auto,
+                 pct=round(pct, 2), px=px, closed=closed, held=held)
         out.append(t)
         if closed and t["exit_date"][:7] == month:
-            realized += pnl
+            realized += pnl; gross_real += gross; ch_real += ch
             (wins if pnl > 0 else losses).append(t)
         elif not closed:
             unreal += pnl
@@ -562,6 +618,8 @@ def api_journal():
     stats = {
         "capital": cap, "exposure": round(exposure), "open": open_n,
         "realized": round(realized), "unrealized": round(unreal),
+        "gross_realized": round(gross_real), "charges": round(ch_real),
+        "brk_del": brk[0], "brk_intra": brk[1],
         "roi": round((realized + unreal) / cap * 100, 1) if cap else 0,
         "wl": f"{len(wins)} / {len(losses)}",
         "batting": round(len(wins) / n_closed * 100) if n_closed else 0,
@@ -576,15 +634,38 @@ def api_journal():
     return jsonify({"trades": out, "stats": stats, "months": {k: round(v) for k, v in month_totals.items()}})
 
 
+def _charges_in(d):
+    v = d.get("charges")
+    if v in (None, ""):
+        return None            # auto estimate
+    try:
+        return max(0.0, float(v))
+    except ValueError:
+        return None
+
+
+@app.route("/api/brokerage", methods=["POST"])
+def api_brokerage():
+    d = request.get_json(force=True)
+    for k in ("brk_del", "brk_intra"):
+        try:
+            v = max(0.0, min(1000.0, float(d.get(k, 0))))
+        except (TypeError, ValueError):
+            continue
+        db().execute("INSERT OR REPLACE INTO settings VALUES(?,?)", (k, str(v)))
+    db().commit()
+    return jsonify(ok=True)
+
+
 @app.route("/api/trade", methods=["POST"])
 def api_trade_add():
     d = request.get_json(force=True)
     db().execute(
-        "INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date,note) VALUES(?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date,note,charges) VALUES(?,?,?,?,?,?,?,?,?,?)",
         (d["symbol"].strip().upper(), d.get("dir", "L"), d.get("kind", "C"), int(d["qty"]),
          float(d["entry_price"]), d["entry_date"],
          float(d["exit_price"]) if d.get("exit_price") not in (None, "") else None,
-         d.get("exit_date") or None, d.get("note", "")))
+         d.get("exit_date") or None, d.get("note", ""), _charges_in(d)))
     db().commit()
     return jsonify(ok=True)
 
@@ -596,11 +677,11 @@ def api_trade_edit(tid):
     else:
         d = request.get_json(force=True)
         db().execute(
-            "UPDATE trades SET symbol=?,dir=?,kind=?,qty=?,entry_price=?,entry_date=?,exit_price=?,exit_date=?,note=? WHERE id=?",
+            "UPDATE trades SET symbol=?,dir=?,kind=?,qty=?,entry_price=?,entry_date=?,exit_price=?,exit_date=?,note=?,charges=? WHERE id=?",
             (d["symbol"].strip().upper(), d.get("dir", "L"), d.get("kind", "C"), int(d["qty"]),
              float(d["entry_price"]), d["entry_date"],
              float(d["exit_price"]) if d.get("exit_price") not in (None, "") else None,
-             d.get("exit_date") or None, d.get("note", ""), tid))
+             d.get("exit_date") or None, d.get("note", ""), _charges_in(d), tid))
     db().commit()
     return jsonify(ok=True)
 
@@ -619,9 +700,10 @@ def api_plan():
     prices = {s["symbol"]: s["price"] for s in get_data()["stocks"]}
     realized = unreal = 0.0
     wins, losses = [], []
+    brk = get_brokerage()
     for r in con.execute("SELECT * FROM trades").fetchall():
         t = dict(r)
-        pnl, pct, _ = pnl_of(t, prices.get(t["symbol"]))
+        _g, _c, pnl, pct, _px, _a = net_of(t, prices.get(t["symbol"]), brk)
         if t["exit_price"] is not None:
             (wins if pnl > 0 else losses).append(pct)      # all-time stats
             if t["exit_date"] and t["exit_date"] >= start:
@@ -643,9 +725,10 @@ def api_pnl():
     """closed trades (exit date + P&L) and open unrealized P&L: feeds the plan sheet's Actual column"""
     prices = {s["symbol"]: s["price"] for s in get_data()["stocks"]}
     closed, unreal = [], 0.0
+    brk = get_brokerage()
     for r in db().execute("SELECT * FROM trades").fetchall():
         t = dict(r)
-        pnl, _, _ = pnl_of(t, prices.get(t["symbol"]))
+        _g, _c, pnl, _p, _x, _a = net_of(t, prices.get(t["symbol"]), brk)
         if t["exit_price"] is not None:
             if t["exit_date"]:
                 closed.append({"date": t["exit_date"], "pnl": round(pnl, 2), "symbol": t["symbol"]})
@@ -764,65 +847,161 @@ def api_capital():
 @app.route("/api/clear", methods=["POST"])
 def api_clear():
     db().execute("DELETE FROM trades")
+    db().execute("DELETE FROM execs")
     db().commit()
     return jsonify(ok=True)
+
+
+def _norm_key(k):
+    return re.sub(r"[^a-z0-9]+", "_", (k or "").strip().lower()).strip("_")
 
 
 def _col(row, *names):
     for n in names:
         for k in row:
-            if k and k.strip().lower().replace(" ", "_") == n:
+            if _norm_key(k) == n and row[k] not in (None, ""):
                 return row[k]
     return None
 
 
+_MON = {m: i + 1 for i, m in enumerate("jan feb mar apr may jun jul aug sep oct nov dec".split())}
+
+
+def _parse_when(v):
+    """'2026-10-22T09:31:05', '22-10-2026 09:31', '22/10/26', '22-Oct-2026', ... -> ('2026-10-22', '09:31:05')"""
+    v = str(v).strip()
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ]+(\d{1,2}:\d{2}(?::\d{2})?))?", v)
+    if m:
+        y, mo, d, tm = m.groups()
+    else:
+        m = re.match(r"^(\d{1,2})[-/ .]([A-Za-z]{3,9}|\d{1,2})[-/ .](\d{2,4})(?:[T ,]+(\d{1,2}:\d{2}(?::\d{2})?))?", v)
+        if not m:
+            return None, ""
+        d, mo, y, tm = m.groups()
+        if not mo.isdigit():
+            mo = _MON.get(mo[:3].lower())
+            if not mo:
+                return None, ""
+        if len(y) == 2:
+            y = "20" + y
+    try:
+        iso = dt.date(int(y), int(mo), int(d)).isoformat()
+    except ValueError:
+        return None, ""
+    tm = tm or ""
+    return iso, (tm + ":00" if tm.count(":") == 1 else tm)
+
+
+def _clean_sym(x):
+    x = str(x).strip().upper()
+    x = re.sub(r"^(NSE|BSE)[:\-]", "", x)
+    x = re.sub(r"(-EQ|-BE|\.NS|\.BO)$", "", x)
+    return x
+
+
 @app.route("/api/import", methods=["POST"])
 def api_import():
-    """Tradebook CSV (Zerodha jevi): symbol, trade_date, trade_type, quantity, price.
-    FIFO thi buy/sell jodi ne trades banave che."""
+    """Tradebook CSV (Zerodha / Angel One / Dhan jevi). Buy/sell ne FIFO thi jodi ne trades banave che.
+    - same-day (intraday) trades samay (time) mujab, na hoy to file na kram mujab
+    - juna open trades sathe pan joday (kal kharidyu, aaje vechyu)
+    - bijivaar same file upload karo to duplicate nathi banta"""
     f = request.files.get("file")
     if not f:
         return jsonify(ok=False, error="File nathi"), 400
     text = f.read().decode("utf-8-sig", errors="ignore")
-    execs = []
-    for row in csv.DictReader(io.StringIO(text)):
-        sym = _col(row, "symbol", "tradingsymbol", "scrip", "stock")
-        date = _col(row, "trade_date", "date", "order_execution_time")
-        side = _col(row, "trade_type", "type", "side", "buy/sell")
-        qty = _col(row, "quantity", "qty")
-        price = _col(row, "price", "trade_price", "avg_price")
-        if not (sym and date and side and qty and price):
+    lines = text.splitlines()
+    # kyarek top ma client info hoy che: header line shodho
+    hdr = 0
+    for n, ln in enumerate(lines[:40]):
+        low = ln.lower()
+        if ("qty" in low or "quantity" in low) and ("price" in low or "rate" in low) and ("symbol" in low or "scrip" in low or "name" in low or "stock" in low or "instrument" in low):
+            hdr = n
+            break
+    execs, idx, skipped = [], 0, 0
+    for row in csv.DictReader(io.StringIO("\n".join(lines[hdr:]))):
+        sym = _col(row, "symbol", "tradingsymbol", "trading_symbol", "scrip", "scrip_name", "stock", "stock_name",
+                   "security_name", "instrument", "instrument_name", "name")
+        when = _col(row, "trade_date", "date", "order_execution_time", "trade_time", "exchange_timestamp",
+                    "execution_time", "order_date", "trade_date_time", "time")
+        side = _col(row, "trade_type", "type", "side", "buy_sell", "buy_sell_flag", "transaction_type", "b_s", "action")
+        qty = _col(row, "quantity", "qty", "traded_qty", "trade_quantity", "trade_qty", "executed_qty")
+        price = _col(row, "price", "trade_price", "avg_price", "average_price", "rate", "trade_rate", "net_rate")
+        tm_col = _col(row, "trade_time", "time", "exchange_time", "order_execution_time")
+        tid = _col(row, "trade_id", "order_id", "exchange_order_id", "trade_no", "trade_number") or ""
+        if not (sym and when and side and qty and price):
+            skipped += 1
             continue
-        try:
-            execs.append((str(date)[:10], sym.strip().upper(), 1 if side.strip().lower().startswith("b") else -1,
-                          int(float(qty)), float(price)))
-        except ValueError:
+        dte, tme = _parse_when(when)
+        if not tme and tm_col:
+            tme = _parse_when("2000-01-01 " + str(tm_col))[1] or ""
+        if not dte:
+            skipped += 1
             continue
-    execs.sort()
-    books = defaultdict(list)     # symbol -> list of [sign, qty, price, date] (open lots)
-    created = 0
+        sd = str(side).strip().lower()
+        sign = 1 if sd.startswith("b") else (-1 if sd.startswith("s") else 0)
+        q, p = _num(qty), _num(price)
+        if not sign or not q or not p or q <= 0 or p <= 0:
+            skipped += 1
+            continue
+        sym = _clean_sym(sym)
+        key = "|".join([dte, tme, sym, str(sign), str(int(q)), "%.4f" % p, str(tid)])
+        execs.append((dte, tme, idx, sym, sign, int(q), p, key))
+        idx += 1
+    if not execs:
+        return jsonify(ok=False, error="Koi trade vanchay nahi. File ma symbol, date, buy/sell, quantity, price column joiye. "
+                       "Header ni pehli line mane moklo to hu mate sudhari aapu."), 400
+    desc = execs[0][0] > execs[-1][0]
+    execs.sort(key=lambda e: (e[0], e[1], -e[2] if desc else e[2]))
     con = db()
-    for date, sym, sign, qty, price in execs:
+    have = {r["k"] for r in con.execute("SELECT k FROM execs")}
+    execs = [e for e in execs if e[7] not in have]
+    dup = idx - len(execs)
+    if not execs:
+        return jsonify(ok=True, created=0, closed=0, dup=dup, skipped=skipped)
+    # juna open trades (je symbols aa file ma che) ne lots tarike lo
+    books = defaultdict(list)       # sym -> [sign, qty, price, date, row_id|None]
+    for sym in {e[3] for e in execs}:
+        for r in con.execute("SELECT * FROM trades WHERE symbol=? AND exit_price IS NULL AND kind='C' "
+                             "ORDER BY entry_date, id", (sym,)):
+            books[sym].append([1 if r["dir"] == "L" else -1, r["qty"], r["entry_price"], r["entry_date"], r["id"]])
+    created = closed = 0
+    for dte, tme, _i, sym, sign, qty, price, key in execs:
         lots = books[sym]
         while qty > 0 and lots and lots[0][0] != sign:
             lot = lots[0]
             m = min(qty, lot[1])
             d = "L" if lot[0] == 1 else "S"
-            con.execute("INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date) VALUES(?,?,?,?,?,?,?,?)",
-                        (sym, d, "C", m, lot[2], lot[3], price, date))
-            created += 1
+            if lot[4]:       # juno open trade: close kari do (adhuro hoy to split)
+                if m == lot[1]:
+                    con.execute("UPDATE trades SET exit_price=?, exit_date=? WHERE id=?", (price, dte, lot[4]))
+                else:
+                    con.execute("UPDATE trades SET qty=?, exit_price=?, exit_date=? WHERE id=?", (m, price, dte, lot[4]))
+                    r0 = con.execute("SELECT * FROM trades WHERE id=?", (lot[4],)).fetchone()
+                    cur = con.execute("INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,note) VALUES(?,?,?,?,?,?,?)",
+                                      (sym, d, "C", lot[1] - m, lot[2], lot[3], r0["note"] or ""))
+                    lot[4] = cur.lastrowid
+                    lot[1] -= m; qty -= m
+                    closed += 1
+                    continue
+            else:
+                con.execute("INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date) VALUES(?,?,?,?,?,?,?,?)",
+                            (sym, d, "C", m, lot[2], lot[3], price, dte))
+                created += 1
+            closed += 1
             lot[1] -= m; qty -= m
             if lot[1] == 0:
                 lots.pop(0)
         if qty > 0:
-            lots.append([sign, qty, price, date])
+            lots.append([sign, qty, price, dte, None])
     for sym, lots in books.items():
-        for sign, qty, price, date in lots:
-            con.execute("INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date) VALUES(?,?,?,?,?,?)",
-                        (sym, "L" if sign == 1 else "S", "C", qty, price, date))
-            created += 1
+        for sign, qty, price, d0, rid in lots:
+            if rid is None:
+                con.execute("INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date) VALUES(?,?,?,?,?,?)",
+                            (sym, "L" if sign == 1 else "S", "C", qty, price, d0))
+                created += 1
+    con.executemany("INSERT OR IGNORE INTO execs(k) VALUES(?)", [(e[7],) for e in execs])
     con.commit()
-    return jsonify(ok=True, created=created)
+    return jsonify(ok=True, created=created, closed=closed, dup=dup, skipped=skipped)
 @app.route("/compare")
 def compare():
     return render_template("compare.html", active="compare", updated=get_data()["updated"])
