@@ -531,11 +531,26 @@ def get_brokerage():
 
 
 def est_charges(t, brk):
-    """Estimated taxes + charges (Rs) for one cash trade (NSE equity, approx).
-    Rates badlay to code ma upar na numbers sudharo. F&O ma 0 (manual lakho)."""
+    """Estimated taxes + charges (Rs): cash, futures (F), options (O) - NSE, approx.
+    Rates badlay to code ma numbers sudharo."""
+    q, ep = t["qty"], t["entry_price"]
+    if t.get("kind") in ("F", "O"):
+        opt = t["kind"] == "O"
+        legs = [("B" if t["dir"] == "L" else "S", ep * q)]
+        if t.get("exit_price") is not None:
+            legs.append(("S" if t["dir"] == "L" else "B", t["exit_price"] * q))
+        tot = 0.0
+        for side, v in legs:
+            brokerage = brk[1]                                  # flat per order (F&O)
+            txn = (0.0003503 if opt else 0.0000183) * v         # NSE F&O exchange charge
+            sebi = 0.000001 * v
+            gst = 0.18 * (brokerage + txn + sebi)
+            stt = ((0.0015 if opt else 0.0005) * v) if side == "S" else 0.0      # STT from 1 Apr 2026
+            stamp = ((0.00003 if opt else 0.00002) * v) if side == "B" else 0.0
+            tot += brokerage + txn + sebi + gst + stt + stamp
+        return round(tot, 2)
     if t.get("kind") != "C":
         return 0.0
-    q, ep = t["qty"], t["entry_price"]
     closed = t.get("exit_price") is not None
     intraday = closed and t.get("exit_date") and t["exit_date"] == t["entry_date"]
     legs = [("B" if t["dir"] == "L" else "S", ep * q)]
