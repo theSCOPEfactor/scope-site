@@ -10,12 +10,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Montserrat:wght@800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ ver }}">
-<style>
-.bl-r{transform-origin:150px 150px;animation:blspin 60s linear infinite}
-.bl-r.b{animation-duration:90s;animation-direction:reverse}
-@keyframes blspin{from{transform:rotate(var(--r))}to{transform:rotate(calc(var(--r) + 360deg))}}
-@media (prefers-reduced-motion: reduce){.bl-r{animation:none}}
-</style>
 <script src="{{ url_for('static', filename='app.js') }}?v={{ ver }}"></script>
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
@@ -25,27 +19,7 @@
 <div class="scrim" id="scrim"></div>
 <aside class="side" id="side">
   <a class="brand" href="{{ url_for('home') }}" aria-label="Scope - home" data-tip="Scope · Home">
-    <svg class="logo-img" id="brandlogo" width="40" height="40" viewBox="0 0 300 300" aria-hidden="true">
-      <defs>
-        <linearGradient id="bl-g" gradientUnits="userSpaceOnUse" x1="40" y1="40" x2="260" y2="260"><stop offset="0" stop-color="#2BD9B8"/><stop offset=".55" stop-color="#3AA0E8"/><stop offset="1" stop-color="#FF9A4D"/></linearGradient>
-        <linearGradient id="bl-a" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FF8A3D"/><stop offset="1" stop-color="#FFC27A"/></linearGradient>
-        <radialGradient id="bl-c"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#5eead4"/><stop offset="1" stop-color="#2BD9B8" stop-opacity="0"/></radialGradient>
-      </defs>
-      <g fill="none" stroke="url(#bl-g)" stroke-linecap="round">
-        <circle class="bl-r" style="--r:-24deg" cx="150" cy="150" r="100" stroke-width="12" stroke-dasharray="470 158"/>
-        <circle class="bl-r b" style="--r:40deg" cx="150" cy="150" r="72" stroke-width="11" stroke-dasharray="300 152"/>
-        <circle class="bl-r" style="--r:-80deg" cx="150" cy="150" r="46" stroke-width="10" stroke-dasharray="190 99"/>
-        <ellipse cx="150" cy="150" rx="125" ry="38" transform="rotate(-28 150 150)" stroke-width="12" stroke-dasharray="216 366" stroke-dashoffset="-145"/>
-      </g>
-      <circle cx="150" cy="150" r="26" fill="url(#bl-c)"/>
-      <circle cx="150" cy="150" r="8" fill="#fff"/>
-      <g id="bl-aim" transform="translate(150 150) rotate(-42)">
-        <g id="bl-shaft">
-          <path d="M-92 10 Q-20 14 74 -2" fill="none" stroke="url(#bl-a)" stroke-width="13" stroke-linecap="round"/>
-          <path d="M68 -24 L116 -2 L70 20 Q82 -2 68 -24Z" fill="url(#bl-a)" stroke="#FFB46B" stroke-width="2" stroke-linejoin="round"/>
-        </g>
-      </g>
-    </svg>
+    <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="">
     <span class="bt"><b class="wordmark">SCOPE</b><span class="typer" data-text="PRECISION. VISION. SUCCESS.">PRECISION. VISION. SUCCESS.</span></span>
   </a>
   <nav class="menu">
@@ -77,23 +51,6 @@ document.getElementById('collapse').onclick=function(){b.classList.toggle('mini'
 var o=function(f){b.classList.toggle('drawer',f)};
 document.getElementById('burger').onclick=function(){o(!b.classList.contains('drawer'))};
 document.getElementById('scrim').onclick=function(){o(false)};})();
-</script>
-<script>
-/* Scope logo: arrow aims at the pointer, small recoil when you hover the brand */
-(function(){var s=document.getElementById('brandlogo');if(!s)return;
-var a=document.getElementById('bl-aim'),sh=document.getElementById('bl-shaft'),cur=-42,tg=-42,on=false,
-rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
-addEventListener('pointermove',function(e){var r=s.getBoundingClientRect();if(!r.width)return;on=true;
-tg=Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2))*180/Math.PI});
-document.documentElement.addEventListener('mouseleave',function(){on=false});
-(function t(n){var g=on?tg:(rm?-42:-42+Math.sin(n/1400)*5);
-cur+=(((g-cur+540)%360)-180)*.12;
-a.setAttribute('transform','translate(150 150) rotate('+cur.toFixed(1)+')');
-requestAnimationFrame(t)})(0);
-var br=s.closest('.brand');
-if(br&&sh.animate)br.addEventListener('mouseenter',function(){
-sh.animate([{transform:'translateX(0)'},{transform:'translateX(-18px)',offset:.3},{transform:'translateX(24px)',offset:.55},{transform:'translateX(0)'}],{duration:650,easing:'cubic-bezier(.2,.7,.2,1)'})})
-})();
 </script>
 {% endblock %}
 <main>{% block body %}{% endblock %}</main>

@@ -24,6 +24,7 @@
     <label class="fld">Buy date<input id="f_date" type="date"></label>
     <label class="fld">Stop-loss<input id="f_sl" type="number" min="0" step="0.05"></label>
     <label class="fld">Target<input id="f_tg" type="number" min="0" step="0.05"></label>
+    <label class="fld full">Current price (only for unlisted shares, e.g. NSE)<input id="f_mp" type="number" min="0" step="0.05" placeholder="Leave empty for stocks that trade on the exchange"></label>
     <label class="fld full">Note<textarea id="f_note" rows="2"></textarea></label>
   </div>
   <div class="row" style="margin-top:14px;justify-content:space-between">
@@ -66,7 +67,7 @@ function draw(){
   $('allocl').innerHTML=top.slice(0,6).map((h,i)=>`<span style="color:${pal[i%pal.length]}">●</span> ${h.symbol} ${val?(h.value/val*100).toFixed(0):0}%`).join(' &nbsp; ');
   const L=H.slice().sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
   $('rows').innerHTML=L.map(h=>`<tr class="clk" style="${h.stoppx?'background:rgba(251,113,133,.1)':''}" data-id="${h.id}">
-    <td class="l"><a href="/stock/${h.symbol}" onclick="event.stopPropagation()"><b>${h.symbol}</b></a>${h.known?'':' <span class="mut" title="Not in scanned data - price uses your avg">?</span>'}</td>
+    <td class="l"><a href="/stock/${h.symbol}" onclick="event.stopPropagation()"><b>${h.symbol}</b></a>${h.known?'':(h.manual?` <span class="tag" title="Price typed by you${h.manual_date?' on '+h.manual_date:''}. Update it from the edit button.">manual${h.manual_date?' · '+h.manual_date.slice(5):''}</span>`:' <span class="mut" title="Not in scanned data - price uses your avg">?</span>')}</td>
     <td>${h.qty}</td><td>${f2(h.avg_price)}</td><td>${f2(h.ltp)}</td><td>${f2(h.value)}</td>
     <td class="${cls(h.pnl)}">${sg(h.pnl)}</td><td class="${cls(h.pnlp)}">${h.pnlp.toFixed(2)}%</td><td class="${cls(h.day)}">${h.ltp!=null?sg(h.day):'-'}</td>
     <td class="${h.stoppx?'warn':''}">${f2(h.sl)}</td><td>${f2(h.target)}</td>
@@ -81,12 +82,12 @@ function openForm(id){
   editId=id||null; const h=H.find(x=>x.id==id)||{};
   $('mtitle').textContent=id?'Edit holding':'Add holding'; $('delbtn').hidden=!id;
   $('f_symbol').value=h.symbol||''; $('f_qty').value=h.qty??''; $('f_avg').value=h.avg_price??''; $('f_date').value=h.buy_date||'';
-  $('f_sl').value=h.stoploss??''; $('f_tg').value=h.target??''; $('f_note').value=h.note||'';
+  $('f_mp').value=h.manual_price??''; $('f_sl').value=h.stoploss??''; $('f_tg').value=h.target??''; $('f_note').value=h.note||'';
   $('modal').classList.add('on');
 }
 function closeForm(){$('modal').classList.remove('on')}
 async function save(){
-  const body={symbol:$('f_symbol').value,qty:$('f_qty').value,avg_price:$('f_avg').value,buy_date:$('f_date').value,stoploss:$('f_sl').value,target:$('f_tg').value,note:$('f_note').value};
+  const body={symbol:$('f_symbol').value,qty:$('f_qty').value,avg_price:$('f_avg').value,buy_date:$('f_date').value,manual_price:$('f_mp').value,stoploss:$('f_sl').value,target:$('f_tg').value,note:$('f_note').value};
   const r=await fetch(editId?'/api/holding/'+editId:'/api/holding',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json(); if(!j.ok){toast(j.error||'Error');return}
   closeForm(); toast('Saved'); load();
