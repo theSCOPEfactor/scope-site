@@ -15,6 +15,7 @@
     </div>
     <div class="row">
       <label class="btn primary">⬆ Import tradebook<input type="file" id="imp" accept=".csv" hidden></label>
+      <button class="btn" onclick="brkSet()" title="Brokerage used in the automatic charges estimate">Brokerage settings</button>
       <button class="btn danger" onclick="clearAll()">Clear all</button>
     </div>
   </div>
@@ -22,7 +23,7 @@
   <div class="card"><div class="stats" id="stats"></div></div>
   <div class="card">
     <div class="wrap"><table>
-      <thead><tr><th class="l">Stock</th><th>Dir</th><th>Type</th><th>Qty</th><th>Avg entry</th><th>Avg exit / LTP</th><th>% move</th><th>Held</th><th>P&amp;L</th><th></th></tr></thead>
+      <thead><tr><th class="l">Stock</th><th>Dir</th><th>Type</th><th>Qty</th><th>Avg entry</th><th>Avg exit / LTP</th><th>% move</th><th>Held</th><th>Gross P&amp;L</th><th>Charges</th><th>Net P&amp;L</th><th></th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
     <div style="text-align:center;margin-top:12px"><button class="btn primary" onclick="openForm()">＋ Log new trade</button></div>
@@ -65,6 +66,7 @@
     <label class="fld">Entry date<input id="f_ed" type="date"></label>
     <label class="fld">Exit price (blank = open)<input id="f_xp" type="number" step="0.05"></label>
     <label class="fld">Exit date<input id="f_xd" type="date"></label>
+    <label class="fld full">Taxes &amp; charges ₹ (leave blank = automatic estimate)<input id="f_ch" type="number" min="0" step="0.01" placeholder="auto"></label>
     <label class="fld full">Thesis / note<textarea id="f_note" rows="3"></textarea></label>
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -108,7 +110,7 @@ async function load(){
   }
   $('months').innerHTML=`<button onclick="shiftY(-1)">‹</button><button disabled>${y}</button><button onclick="shiftY(1)">›</button>`+h;
   const st=(l,v,c='')=>`<div class="stat"><small>${l}</small><b class="${c}">${v}</b></div>`;
-  $('stats').innerHTML=st('Realized',inr(s.realized),cls(s.realized))+st('Unrealized',inr(s.unrealized),cls(s.unrealized))
+  $('stats').innerHTML=st('Net realized',inr(s.realized),cls(s.realized))+st('Gross realized',inr(s.gross_realized),cls(s.gross_realized))+st('Taxes &amp; charges','-'+inr(s.charges).replace('-',''),'neg')+st('Unrealized (net)',inr(s.unrealized),cls(s.unrealized))
     +st('Cum. ROI',s.roi+'%',cls(s.roi))+st('W / L',s.wl)+st('Batting avg',s.batting+'%')
     +st('Avg win','+'+s.win_pct+'%','pos')+st('Avg loss',s.loss_pct+'%','neg')
     +st('Avg held',s.avg_held+'d')+st('Winners held',s.w_held+'d','pos')+st('Losers held',s.l_held+'d','neg')
@@ -118,11 +120,19 @@ async function load(){
     <td><span class="tag ${t.dir}">${t.dir}</span></td><td>${t.kind}</td><td>${t.qty}</td>
     <td>${t.entry_price.toFixed(2)}</td><td>${t.px==null?'-':t.px.toFixed(2)}${t.closed?'':' <small class="mut">LTP</small>'}</td>
     <td class="${cls(t.pct)}">${t.pct>0?'+':''}${t.pct}%</td><td>${t.held}d</td>
+    <td class="${cls(t.gross)}">${inr(t.gross)}</td>
+    <td class="mut" title="${t.ch_auto?'Estimated (STT, brokerage, GST, stamp, exchange fees). Edit the trade to enter the exact amount.':'Entered by you'}">${t.px==null?'-':'-'+inr(t.ch).replace('-','')}${t.ch_auto?' <small>est.</small>':''}</td>
     <td class="${cls(t.pnl)}"><b>${inr(t.pnl)}</b></td>
     <td><button class="btn sm" onclick='openForm(${JSON.stringify(t).replace(/'/g,"&#39;")})'>✎</button> <button class="btn sm danger" onclick="del(${t.id})">✕</button></td></tr>`).join('')
-    :'<tr><td colspan="10" class="empty">No trades this month. Click "Log new trade" or import a tradebook.</td></tr>';
+    :'<tr><td colspan="12" class="empty">No trades this month. Click "Log new trade" or import a tradebook.</td></tr>';
 }
 function shiftY(d){month=(+month.slice(0,4)+d)+month.slice(4);load()}
+async function brkSet(){
+  const s=DATA.stats;
+  const a=prompt('Delivery brokerage per order (₹). Many brokers charge 0:',s.brk_del); if(a===null) return;
+  const b=prompt('Intraday brokerage per order, maximum (₹). Usually 20 (or 0.03% if less):',s.brk_intra); if(b===null) return;
+  await fetch('/api/brokerage',{method:'POST',body:JSON.stringify({brk_del:+a,brk_intra:+b})}); toast('Saved'); load(); if(planReady) refreshPnl();
+}
 async function editCap(){
   const v=prompt('Capital (₹):',CAP); if(!v) return;
   await fetch('/api/capital',{method:'POST',body:JSON.stringify({capital:+v})}); await load(); if(planReady) renderPlan();
@@ -132,12 +142,13 @@ function openForm(t){
   $('f_symbol').value=t?t.symbol:''; $('f_dir').value=t?t.dir:'L'; $('f_kind').value=t?t.kind:'C'; $('f_qty').value=t?t.qty:'';
   $('f_ep').value=t?t.entry_price:''; $('f_ed').value=t?t.entry_date:new Date().toISOString().slice(0,10);
   $('f_xp').value=t&&t.exit_price!=null?t.exit_price:''; $('f_xd').value=t&&t.exit_date?t.exit_date:''; $('f_note').value=t?t.note:'';
+  $('f_ch').value=t&&!t.ch_auto?t.ch:'';
   $('modal').classList.add('on');
 }
 function closeForm(){$('modal').classList.remove('on')}
 async function saveTrade(){
   const b={symbol:$('f_symbol').value,dir:$('f_dir').value,kind:$('f_kind').value,qty:$('f_qty').value,entry_price:$('f_ep').value,
-    entry_date:$('f_ed').value,exit_price:$('f_xp').value,exit_date:$('f_xd').value,note:$('f_note').value};
+    entry_date:$('f_ed').value,exit_price:$('f_xp').value,exit_date:$('f_xd').value,note:$('f_note').value,charges:$('f_ch').value};
   if(!b.symbol||!b.qty||!b.entry_price||!b.entry_date){alert('Symbol, quantity, entry price and entry date are required');return}
   if(b.exit_price&&!b.exit_date) b.exit_date=new Date().toISOString().slice(0,10);
   await fetch(editId?'/api/trade/'+editId:'/api/trade',{method:editId?'PUT':'POST',body:JSON.stringify(b)});
@@ -148,7 +159,7 @@ async function clearAll(){ if(confirm('This deletes ALL trades. Sure?')){await f
 $('imp').onchange=async e=>{
   const fd=new FormData(); fd.append('file',e.target.files[0]);
   const r=await (await fetch('/api/import',{method:'POST',body:fd})).json();
-  alert(r.ok?r.created+' trades imported':(r.error||'Import failed')); e.target.value=''; load();
+  alert(r.ok?(r.created+' new trades, '+r.closed+' closed'+(r.dup?', '+r.dup+' already imported (skipped)':'')+(r.skipped?', '+r.skipped+' rows not understood':'')):(r.error||'Import failed')); e.target.value=''; load(); if(planReady) refreshPnl();
 };
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=d.stocks.map(s=>`<option value="${s.symbol}">`).join('')});
 
