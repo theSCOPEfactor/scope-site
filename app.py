@@ -563,10 +563,10 @@ def est_charges(t, brk):
 def net_of(t, ltp, brk):
     """(gross, charges, net, pct, px, charges_is_auto)"""
     gross, pct, px = pnl_of(t, ltp)
-    if px is None:
-        return 0.0, 0.0, 0.0, 0.0, None, True
     auto = t.get("charges") is None
     ch = est_charges(t, brk) if auto else float(t["charges"])
+    if px is None:                 # LTP nathi: charges (entry side) batavo, net ganvo nahi
+        return 0.0, ch, 0.0, 0.0, None, auto
     return gross, ch, gross - ch, pct, px, auto
 
 
