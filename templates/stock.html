@@ -59,12 +59,13 @@ function render(r){
   const I=s.intra, mkI=I?(()=>{const R=I.vhigh-I.vlow;return {price:s.price,vlow:I.vlow,vhigh:I.vhigh,point:I.point,fib:{target1:I.vlow+R*1.272,sell_reversal:I.vlow+R*.75,buy_reversal:I.vlow+R*.25}}})():null;
   const nl=isNew?(mkI?nextLevels(mkI):{}):(s.point!=null?nextLevels(s):{});
   const L=s.listing;
-  const newCard=isNew?`<div class="card"><h2>New listing</h2><div class="stats">
-    ${row('Listed on',L?esc(L.date):'-')}${row('Listing-day open','₹'+f2(L?L.open:null))}
-    ${row('Since listing open',L?`<span class="${L.vs_open>=0?'pos':'neg'}">${L.vs_open>=0?'+':''}${L.vs_open}%</span>`:'-')}
-    ${row('High since listing','₹'+f2(L?L.high:null))}${row('Low since listing','₹'+f2(L?L.low:null))}
+  const win=(s.bars||0)>=20;     // 30 divas ni window puri -> asli listing date nathi
+  const newCard=isNew?`<div class="card"><h2>${win?'Recent data':'New listing'}</h2><div class="stats">
+    ${row(win?'Data from':'Listed on',L?esc(L.date):'-')}${row(win?'First-day open':'Listing-day open','₹'+f2(L?L.open:null))}
+    ${row(win?'Since then':'Since listing open',L?`<span class="${L.vs_open>=0?'pos':'neg'}">${L.vs_open>=0?'+':''}${L.vs_open}%</span>`:'-')}
+    ${row(win?'High':'High since listing','₹'+f2(L?L.high:null))}${row(win?'Low':'Low since listing','₹'+f2(L?L.low:null))}
     ${row('Days traded',s.bars??'-')}
-  </div><p class="note">This stock is too new for 52-week levels, Stage or RS, so none are calculated. ${s.live_ts?'Live data as of '+esc(String(s.live_ts).slice(0,16))+' (refreshed about every 15 minutes in market hours).':''}</p></div>`:'';
+  </div><p class="note">${win?'Only the last ~30 days of data are used for this stock, so 52-week levels, Stage and RS are not calculated.':'This stock is too new for 52-week levels, Stage or RS, so none are calculated.'} ${s.live_ts?'Live data as of '+esc(String(s.live_ts).slice(0,16))+' (refreshed about every 15 minutes in market hours).':''}</p></div>`:'';
   const lvlCard=isNew
     ?(mkI?`<div class="card"><h2>Intraday levels <span class="mut" style="font-size:13px;font-weight:400">· ${esc(I.date)} session only</span></h2>${ScopeLadder.html(mkI)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div><p class="note">Made from today's candles only, so use them for intraday, not for longer decisions.</p></div>`:'')
     :(s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:'');
