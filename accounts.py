@@ -26,7 +26,7 @@ DEFAULT_PRICE_PER_MONTH = 5000     # fakat shuruat nu; admin page ma badlay
 # aa pages login vagar pan khulla che
 PUBLIC = {"login", "logout", "register", "verify", "resend_otp", "static"}
 # plan puru thayo hoy tyare pan aa pages chalse (profile, payment, help)
-EXPIRED_OK = {"profile", "pay", "help_page", "logout"}
+EXPIRED_OK = {"profile", "pay", "help_page", "logout", "support", "support_new"}
 
 
 # ------------------------------------------------------------ helpers
@@ -54,6 +54,11 @@ def init_users():
       status TEXT DEFAULT 'active',        -- active / blocked
       note TEXT DEFAULT '',
       sess TEXT, last_login TEXT, created TEXT
+    );
+    CREATE TABLE IF NOT EXISTS tickets(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, subject TEXT, message TEXT,
+      reply TEXT, status TEXT DEFAULT 'open',       -- open / answered / closed
+      created TEXT, replied TEXT
     );
     CREATE TABLE IF NOT EXISTS plans(
       months INTEGER PRIMARY KEY, price INTEGER NOT NULL, active INTEGER DEFAULT 1
@@ -260,7 +265,14 @@ def user_db_path(uid):
 def template_ctx():
     u = g.get("user")
     d = {"csrf": csrf, "is_admin": bool(g.get("admin")) and bool(os.environ.get("SCOPE_PASSWORD")),
-         "me": None, "acct_msg": "", "acct_left": None, "acct_short": ""}
+         "me": None, "acct_msg": "", "acct_left": None, "acct_short": "", "open_tickets": 0, "wa": os.environ.get("WHATSAPP_NUMBER", "")}
+    if g.get("admin") and os.environ.get("SCOPE_PASSWORD"):
+        try:
+            c = conn()
+            d["open_tickets"] = c.execute("SELECT COUNT(*) FROM tickets WHERE status='open'").fetchone()[0]
+            c.close()
+        except Exception:
+            pass
     if u:
         d["me"] = u
         d["acct_msg"] = status_msg(u)
@@ -482,6 +494,66 @@ def route_admin_user(uid):
     return render_template("admin_user.html", u=u, msg=status_msg(u), pays=pays, fmt=fmt_dt, active="admin")
 
 
+def route_support():
+    """user: apli queries + navi query. WHATSAPP_NUMBER set hoy to link pan dekhay."""
+    if g.get("admin"):
+        return redirect(url_for("admin_support"))
+    c = conn()
+    rows = c.execute("SELECT * FROM tickets WHERE user_id=? ORDER BY id DESC", (g.user["id"],)).fetchall()
+    c.close()
+    return render_template("support.html", rows=rows, fmt=fmt_dt, active="support",
+                           err=session.pop("serr", ""), ok=session.pop("sok", ""))
+
+
+def route_support_new():
+    if g.get("admin") or request.method != "POST":
+        return redirect(url_for("support"))
+    subj = re.sub(r"\s+", " ", request.form.get("subject", "")).strip()[:120]
+    msg = request.form.get("message", "").strip()[:2000]
+    c = conn()
+    open_n = c.execute("SELECT COUNT(*) FROM tickets WHERE user_id=? AND status='open'", (g.user["id"],)).fetchone()[0]
+    if len(subj) < 3 or len(msg) < 5:
+        session["serr"] = "Please write a subject and your question."
+    elif open_n >= 5:
+        session["serr"] = "You already have 5 open questions. Please wait for a reply."
+    else:
+        c.execute("INSERT INTO tickets(user_id,subject,message,created) VALUES(?,?,?,?)",
+                  (g.user["id"], subj, msg, now_ist().strftime("%Y-%m-%d %H:%M")))
+        c.commit()
+        session["sok"] = "Sent. You will see the reply here."
+    c.close()
+    return redirect(url_for("support"))
+
+
+def route_admin_support():
+    _need_admin()
+    c = conn()
+    rows = c.execute("""SELECT t.*, u.name, u.email, u.mobile FROM tickets t JOIN users u ON u.id=t.user_id
+                        ORDER BY (t.status='open') DESC, t.id DESC LIMIT 200""").fetchall()
+    c.close()
+    return render_template("admin_support.html", rows=rows, fmt=fmt_dt, active="admin_support")
+
+
+def route_admin_reply():
+    _need_admin()
+    f = request.form
+    c = conn()
+    try:
+        tid = int(f.get("ticket_id", 0))
+        if f.get("action") == "close":
+            c.execute("UPDATE tickets SET status='closed' WHERE id=?", (tid,))
+        else:
+            reply = f.get("reply", "").strip()[:2000]
+            if reply:
+                c.execute("UPDATE tickets SET reply=?, status='answered', replied=? WHERE id=?",
+                          (reply, now_ist().strftime("%Y-%m-%d %H:%M"), tid))
+        c.commit()
+    except Exception:
+        c.rollback()
+    c.close()
+    return redirect(url_for("admin_support"))
+
+
 def route_admin_act():
     """POST: action=approve|reject (pay_id), block|unblock|logout|extend|kyc (user_id)"""
     _need_admin()
@@ -531,7 +603,7 @@ def route_admin_act():
     return redirect(back)
 
 
-FORM_EPS = {"login", "register", "verify", "resend_otp", "pay", "admin_act"}
+FORM_EPS = {"login", "register", "verify", "resend_otp", "pay", "admin_act", "support_new", "admin_reply"}
 
 
 def init_app(app):
@@ -545,6 +617,10 @@ def init_app(app):
     R("/verify/resend", "resend_otp", route_resend, methods=["POST"])
     R("/profile", "profile", route_profile)
     R("/pay", "pay", route_pay, methods=["POST"])
+    R("/support", "support", route_support)
+    R("/support/new", "support_new", route_support_new, methods=["POST"])
+    R("/admin/support", "admin_support", route_admin_support)
+    R("/admin/reply", "admin_reply", route_admin_reply, methods=["POST"])
     R("/admin", "admin", route_admin)
     R("/admin/user/<int:uid>", "admin_user", route_admin_user)
     R("/admin/act", "admin_act", route_admin_act, methods=["POST"])
