@@ -10,6 +10,7 @@ Environment variables (WSGI file ma set karvana):
 import os, io, re, csv, json, time, sqlite3, datetime as dt
 from collections import defaultdict
 import requests
+import accounts as acct
 from flask import (Flask, render_template, request, redirect, url_for,
                    session, jsonify, g, send_file)
 
@@ -34,9 +35,23 @@ def inject_ver():
 
 
 # ---------------------------------------------------------------- DB
+_ready = set()
+
+
+def my_db_path():
+    """owner -> journal.db ; bija user -> potani alag database (data mix thato nathi)"""
+    u = g.get("user")
+    if u is None:
+        return DB_PATH
+    p = acct.user_db_path(u["id"])
+    if p not in _ready:
+        init_db(p); _ready.add(p)
+    return p
+
+
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
+        g.db = sqlite3.connect(my_db_path())
         g.db.row_factory = sqlite3.Row
     return g.db
 
@@ -48,8 +63,8 @@ def close_db(_):
         d.close()
 
 
-def init_db():
-    con = sqlite3.connect(DB_PATH)
+def init_db(path=None):
+    con = sqlite3.connect(path or DB_PATH)
     con.executescript("""
     CREATE TABLE IF NOT EXISTS trades(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,33 +102,13 @@ def init_db():
 init_db()
 
 
-# ---------------------------------------------------------------- auth
+# ---------------------------------------------------------------- auth (accounts.py)
+acct.init_app(app)
+
+
 @app.before_request
 def guard():
-    if not PASSWORD:
-        return
-    if request.endpoint in ("login", "static"):
-        return
-    if not session.get("ok"):
-        return redirect(url_for("login"))
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    err = ""
-    if request.method == "POST":
-        if request.form.get("password") == PASSWORD:
-            session["ok"] = True
-            session.permanent = True
-            return redirect(url_for("home"))
-        err = "Wrong password"
-    return render_template("login.html", err=err)
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
+    return acct.guard(bool(PASSWORD))
 
 
 # ---------------------------------------------------------------- data (GitHub / local)
@@ -483,6 +478,11 @@ def backtest_page():
     return render_template("backtest.html", active="backtest", updated=get_data()["updated"])
 
 
+@app.route("/help")
+def help_page():
+    return render_template("help.html", active="help", updated=get_data()["updated"])
+
+
 @app.route("/sectors")
 def sectors():
     return render_template("sectors.html", active="sectors", updated=get_data()["updated"])
@@ -496,7 +496,7 @@ def portfolio():
 @app.route("/backup")
 def backup():
     """download the whole journal + portfolio database (keep a copy somewhere safe)"""
-    return send_file(DB_PATH, as_attachment=True, download_name="scope-backup-" + dt.date.today().isoformat() + ".db")
+    return send_file(my_db_path(), as_attachment=True, download_name="scope-backup-" + dt.date.today().isoformat() + ".db")
 
 
 # ---------------------------------------------------------------- journal logic
