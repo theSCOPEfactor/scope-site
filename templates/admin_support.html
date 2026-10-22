@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Support inbox</h1><p class="sub">Questions from users</p></div></div>
+{% for t in rows %}<div class="card tkt"><div class="row" style="justify-content:space-between"><b>{{ t['subject'] }}</b>
+<span class="tag {{ 's2' if t['status']=='answered' else ('s1' if t['status']=='open' else '') }}">{{ t['status']|capitalize }}</span></div>
+<small class="mut">{{ t['name'] }} · {{ t['email'] }} · {{ t['mobile'] }} · {{ fmt(t['created']) }}</small>
+<p style="margin:6px 0;white-space:pre-wrap">{{ t['message'] }}</p>
+{% if t['reply'] %}<div class="reply"><b>Your reply</b> <small class="mut">{{ fmt(t['replied']) }}</small><p style="margin:4px 0 0;white-space:pre-wrap">{{ t['reply'] }}</p></div>{% endif %}
+{% if t['status']!='closed' %}<form method="post" action="{{ url_for('admin_reply') }}" class="form" style="margin-top:8px">
+<input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="ticket_id" value="{{ t['id'] }}">
+<label class="fld full">{{ 'Update reply' if t['reply'] else 'Reply' }}<textarea name="reply" rows="3" maxlength="2000"></textarea></label>
+<div class="full row"><button class="btn primary sm" name="action" value="reply">Send reply</button><button class="btn sm" name="action" value="close">Close</button></div></form>{% endif %}</div>
+{% else %}<div class="card"><p class="mut">No questions yet.</p></div>{% endfor %}
+{% endblock %}

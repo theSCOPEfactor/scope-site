@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Support</h1><p class="sub">Ask a question and see the reply here</p></div></div>
+{% if err %}<p class="neg">{{ err }}</p>{% endif %}{% if ok %}<p class="pos">{{ ok }}</p>{% endif %}
+<div class="card"><h2>New question</h2>
+<form method="post" action="{{ url_for('support_new') }}" class="form">
+  <input type="hidden" name="_csrf" value="{{ csrf() }}">
+  <label class="fld full">Subject<input name="subject" maxlength="120" required></label>
+  <label class="fld full">Your question<textarea name="message" rows="4" maxlength="2000" required></textarea></label>
+  <div class="full"><button class="btn primary" type="submit">Send</button>
+  {% if wa %}<a class="btn" href="https://wa.me/{{ wa }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}</div>
+</form></div>
+<div class="card"><h2>Your questions</h2>
+{% for t in rows %}<div class="tkt"><div class="row" style="justify-content:space-between"><b>{{ t['subject'] }}</b>
+<span class="tag {{ 's2' if t['status']=='answered' else ('s1' if t['status']=='open' else '') }}">{{ t['status']|capitalize }}</span></div>
+<p class="mut" style="margin:4px 0;white-space:pre-wrap">{{ t['message'] }}</p><small class="mut">{{ fmt(t['created']) }}</small>
+{% if t['reply'] %}<div class="reply"><b>Reply</b> <small class="mut">{{ fmt(t['replied']) }}</small><p style="margin:4px 0 0;white-space:pre-wrap">{{ t['reply'] }}</p></div>{% endif %}</div>
+{% else %}<p class="mut">No questions yet.</p>{% endfor %}</div>
+{% endblock %}
