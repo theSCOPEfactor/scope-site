@@ -262,10 +262,18 @@ def user_db_path(uid):
     return os.path.join(DATA_DIR, "u_%d.db" % uid)
 
 
+def _wa():
+    """WHATSAPP_NUMBER fakat digits; 10 digit hoy to 91 aagal lagavo; kharab hoy to khali"""
+    d = re.sub(r"\D", "", os.environ.get("WHATSAPP_NUMBER", ""))
+    if len(d) == 10:
+        d = "91" + d
+    return d if 11 <= len(d) <= 15 else ""
+
+
 def template_ctx():
     u = g.get("user")
     d = {"csrf": csrf, "is_admin": bool(g.get("admin")) and bool(os.environ.get("SCOPE_PASSWORD")),
-         "me": None, "acct_msg": "", "acct_left": None, "acct_short": "", "open_tickets": 0, "wa": os.environ.get("WHATSAPP_NUMBER", "")}
+         "me": None, "acct_msg": "", "acct_left": None, "acct_short": "", "open_tickets": 0, "wa": _wa()}
     if g.get("admin") and os.environ.get("SCOPE_PASSWORD"):
         try:
             c = conn()
