@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="pagehead"><div><h1>Support inbox</h1><p class="sub">Questions from users</p></div></div>
+<div class="card">{% if wa %}<span class="pos">WhatsApp is ON.</span> Users see a WhatsApp button on their Support page: <a href="https://wa.me/{{ wa }}" target="_blank" rel="noopener">wa.me/{{ wa }}</a>
+{% else %}<span class="mut">WhatsApp is OFF (WHATSAPP_NUMBER is not set).</span>{% endif %}
+<p class="note">As owner you see this inbox. The WhatsApp button appears only on a user's Support page.</p></div>
 {% for t in rows %}<div class="card tkt"><div class="row" style="justify-content:space-between"><b>{{ t['subject'] }}</b>
 <span class="tag {{ 's2' if t['status']=='answered' else ('s1' if t['status']=='open' else '') }}">{{ t['status']|capitalize }}</span></div>
 <small class="mut">{{ t['name'] }} · {{ t['email'] }} · {{ t['mobile'] }} · {{ fmt(t['created']) }}</small>
