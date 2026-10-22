@@ -61,7 +61,7 @@
     <label class="fld">Symbol<input id="f_symbol" list="syms" placeholder="HDFCBANK"></label>
     <label class="fld">Direction<select id="f_dir"><option value="L">Long</option><option value="S">Short</option></select></label>
     <label class="fld">Qty<input id="f_qty" type="number"></label>
-    <label class="fld">Type<select id="f_kind"><option value="C">Cash</option><option value="F">F&amp;O</option></select></label>
+    <label class="fld">Type<select id="f_kind"><option value="C">Cash</option><option value="O">Options</option><option value="F">Futures</option></select></label>
     <label class="fld">Entry price<input id="f_ep" type="number" step="0.05"></label>
     <label class="fld">Entry date<input id="f_ed" type="date"></label>
     <label class="fld">Exit price (blank = open)<input id="f_xp" type="number" step="0.05"></label>
@@ -130,7 +130,7 @@ function shiftY(d){month=(+month.slice(0,4)+d)+month.slice(4);load()}
 async function brkSet(){
   const s=DATA.stats;
   const a=prompt('Delivery brokerage per order (₹). Many brokers charge 0:',s.brk_del); if(a===null) return;
-  const b=prompt('Intraday brokerage per order, maximum (₹). Usually 20 (or 0.03% if less):',s.brk_intra); if(b===null) return;
+  const b=prompt('Intraday / F&O brokerage per order (₹). Usually 20 (intraday cash: or 0.03% if less):',s.brk_intra); if(b===null) return;
   await fetch('/api/brokerage',{method:'POST',body:JSON.stringify({brk_del:+a,brk_intra:+b})}); toast('Saved'); load(); if(planReady) refreshPnl();
 }
 async function editCap(){
