@@ -542,11 +542,11 @@ def est_charges(t, brk):
         tot = 0.0
         for side, v in legs:
             brokerage = brk[1]                                  # flat per order (F&O)
-            txn = (0.0003503 if opt else 0.0000183) * v         # NSE F&O exchange charge
+            txn = (0.0003553 if opt else 0.0000183) * v         # NSE F&O exchange charge
             sebi = 0.000001 * v
             gst = 0.18 * (brokerage + txn + sebi)
             stt = ((0.0015 if opt else 0.0005) * v) if side == "S" else 0.0      # STT from 1 Apr 2026
-            stamp = ((0.00003 if opt else 0.00002) * v) if side == "B" else 0.0
+            stamp = round((0.00003 if opt else 0.00002) * v) if side == "B" else 0.0   # broker whole rupee ma ganave che
             tot += brokerage + txn + sebi + gst + stt + stamp
         return round(tot, 2)
     if t.get("kind") != "C":
