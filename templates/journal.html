@@ -121,8 +121,8 @@ async function load(){
     <td>${t.entry_price.toFixed(2)}</td><td>${t.px==null?'-':t.px.toFixed(2)}${t.closed?'':' <small class="mut">LTP</small>'}</td>
     <td class="${cls(t.pct)}">${t.pct>0?'+':''}${t.pct}%</td><td>${t.held}d</td>
     <td class="${cls(t.gross)}">${inr(t.gross)}</td>
-    <td class="mut" title="${t.ch_auto?'Estimated (STT, brokerage, GST, stamp, exchange fees). Edit the trade to enter the exact amount.':'Entered by you'}">${t.px==null?'-':'-'+inr(t.ch).replace('-','')}${t.ch_auto?' <small>est.</small>':''}</td>
-    <td class="${cls(t.pnl)}"><b>${inr(t.pnl)}</b></td>
+    <td class="mut" title="${t.ch_auto?'Estimated (STT, brokerage, GST, stamp, exchange fees). Edit the trade to enter the exact amount.':'Entered by you'}">${'-'+inr(t.ch).replace('-','')}${t.ch_auto?' <small>est.</small>':''}</td>
+    <td class="${cls(t.pnl)}"><b>${t.px==null?'-':inr(t.pnl)}</b></td>
     <td><button class="btn sm" onclick='openForm(${JSON.stringify(t).replace(/'/g,"&#39;")})'>✎</button> <button class="btn sm danger" onclick="del(${t.id})">✕</button></td></tr>`).join('')
     :'<tr><td colspan="12" class="empty">No trades this month. Click "Log new trade" or import a tradebook.</td></tr>';
 }
