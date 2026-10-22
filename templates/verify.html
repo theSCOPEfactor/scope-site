@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block bodyclass %}loginpage{% endblock %}
+{% block header %}{% endblock %}
+{% block body %}
+<div class="card login">
+  <h2 style="margin:0">Enter OTP</h2>
+  <p class="mut" style="margin:0;font-size:13px">We sent a 6-digit code to <b>{{ masked }}</b>. It is valid for 10 minutes.</p>
+  {% if dev %}<p class="warn" style="margin:0;font-size:13px">Test mode - OTP: <b>{{ dev }}</b></p>{% endif %}
+  <form method="post" action="{{ url_for('verify') }}" style="display:flex;flex-direction:column;gap:12px">
+    <input type="hidden" name="_csrf" value="{{ csrf() }}">
+    <input name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit OTP" autofocus style="text-align:center;letter-spacing:.4em;font-size:20px">
+    {% if err %}<p class="neg" style="margin:0">{{ err }}</p>{% endif %}
+    {% if info %}<p class="pos" style="margin:0">{{ info }}</p>{% endif %}
+    <button class="btn primary" type="submit" style="justify-content:center">Verify</button>
+  </form>
+  <form method="post" action="{{ url_for('resend_otp') }}"><input type="hidden" name="_csrf" value="{{ csrf() }}">
+    <button class="btn sm" type="submit" style="width:100%;justify-content:center">Send a new OTP</button></form>
+  <p class="note" style="text-align:center;margin:0"><a href="{{ url_for('login') }}">Back to login</a></p>
+</div>
+{% endblock %}

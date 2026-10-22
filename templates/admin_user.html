@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+{% macro act(a, label, cls='', extra='') %}<form method="post" action="{{ url_for('admin_act') }}" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="user_id" value="{{ u['id'] }}"><button class="btn sm {{ cls }}" name="action" value="{{ a }}">{{ label }}</button></form>{% endmacro %}
+<div class="pagehead"><div><h1>{{ u['name'] }}</h1><p class="sub">{{ msg }}</p></div>
+<div class="row">{{ act('logout','Force logout') }}{% if u['status']=='blocked' %}{{ act('unblock','Unblock','primary') }}{% else %}{{ act('block','Block','danger') }}{% endif %}</div></div>
+<div class="card"><div class="pgrid">
+  <div><small>Email</small><b>{{ u['email'] }}</b></div><div><small>Mobile</small><b>{{ u['mobile'] }}</b></div>
+  <div><small>Registered</small><b>{{ fmt(u['created']) }}</b></div><div><small>Last login</small><b>{{ u['last_login'] or '-' }}</b></div></div>
+<form method="post" action="{{ url_for('admin_act') }}" class="row" style="margin-top:14px"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="user_id" value="{{ u['id'] }}"><input type="hidden" name="action" value="note">
+<input name="note" placeholder="Your private note" value="{{ u['note'] }}" style="flex:1"><button class="btn primary sm">Save note</button></form></div>
+<div class="card"><h2>Plan days</h2>
+<form method="post" action="{{ url_for('admin_act') }}" class="row"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="user_id" value="{{ u['id'] }}"><input type="hidden" name="action" value="extend">
+<input name="days" type="number" value="30" style="width:110px"> <button class="btn sm primary">Add / remove days</button></form>
+<p class="note">Use a minus number to cut days. Payments approved normally add 30 days per month.</p>
+{% if pays %}<div class="wrap" style="margin-top:12px"><table><thead><tr><th class="l">Date</th><th>Months</th><th>Amount</th><th class="l">UTR</th><th class="l">Status</th></tr></thead><tbody>
+{% for p in pays %}<tr><td class="l">{{ fmt(p['created']) }}</td><td>{{ p['months'] }}</td><td>₹{{ '{:,}'.format(p['amount']) }}</td><td class="l">{{ p['utr'] }}</td><td class="l">{{ p['status']|capitalize }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}</div>
+{% endblock %}

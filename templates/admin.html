@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Users</h1><p class="sub">Registered users, payments and plan prices</p></div></div>
+<div class="card"><h2>Payments waiting for you ({{ pend|length }})</h2>
+{% if pend %}<div class="wrap"><table><thead><tr><th class="l">User</th><th>Months</th><th>Amount</th><th class="l">UTR</th><th></th></tr></thead><tbody>
+{% for p in pend %}<tr><td class="l"><a href="{{ url_for('admin_user', uid=p['user_id']) }}">{{ p['name'] }}</a><br><span class="mut">{{ p['email'] }}</span></td>
+<td>{{ p['months'] }}</td><td>₹{{ '{:,}'.format(p['amount']) }}</td><td class="l">{{ p['utr'] }}</td>
+<td><form method="post" action="{{ url_for('admin_act') }}" style="display:flex;gap:6px;justify-content:flex-end"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="pay_id" value="{{ p['id'] }}">
+<button class="btn sm primary" name="action" value="approve" onclick="return confirm('Check the UTR in your bank app. Approve?')">Approve</button><button class="btn sm danger" name="action" value="reject">Reject</button></form></td></tr>{% endfor %}
+</tbody></table></div><p class="note">Match the UTR and amount with your bank / UPI app before approving.</p>{% else %}<p class="mut">No pending payments.</p>{% endif %}</div>
+<div class="card"><h2>Plans and prices (only you can change)</h2>
+<form method="post" action="{{ url_for('admin_act') }}"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="plans">
+<div class="wrap"><table><thead><tr><th class="l">Duration</th><th class="l">Price (₹, total)</th><th>Offer to users</th></tr></thead><tbody>
+{% for p in plans %}<tr><td class="l"><b>{{ p['months'] }} month{{ 's' if p['months']>1 }}</b></td>
+<td class="l"><input type="number" min="0" step="1" name="price_{{ p['months'] }}" value="{{ p['price'] }}" style="width:140px"></td>
+<td><input type="checkbox" name="on_{{ p['months'] }}" {{ 'checked' if p['active'] }}></td></tr>{% endfor %}
+</tbody></table></div><button class="btn primary sm" style="margin-top:10px">Save prices</button>
+<p class="note">New prices apply to new payments. Hide a duration by unchecking it. Days: 1 month = 30 days.</p></form></div>
+<div class="card"><h2>All users ({{ rows|length }})</h2>
+<div class="wrap"><table><thead><tr><th class="l">Name</th><th class="l">Email / mobile</th><th class="l">Plan</th><th class="l">Status</th><th class="l">Last login</th></tr></thead><tbody>
+{% for u,msg,left in rows %}<tr class="clk" onclick="location='{{ url_for('admin_user', uid=u['id']) }}'">
+<td class="l"><b>{{ u['name'] }}</b></td><td class="l">{{ u['email'] }}<br><span class="mut">{{ u['mobile'] }}</span></td>
+<td class="l">{{ msg }}</td><td class="l">{{ 'Blocked' if u['status']=='blocked' else 'Active' }}</td><td class="l">{{ u['last_login'] or '-' }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No users yet.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

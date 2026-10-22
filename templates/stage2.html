@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="pagehead"><div><h1>Stage 2 &amp; RS Screen</h1><p class="sub">Advancing stocks and relative strength · data updated {{ updated }}</p></div></div>
+<div class="pagehead"><div><h1>Stage 2 &amp; RS Screen</h1><p class="sub">Advancing stocks and relative strength · data updated {{ updated }} · <a href="/help">What do the stages mean?</a></p></div></div>
 
 <div class="card"><div class="stats" id="stats"></div></div>
 
@@ -10,6 +10,7 @@
       <span class="mut">Quick views</span>
       <button class="btn sm" data-p="fresh">Fresh Stage 2 · RS 80+</button>
       <button class="btn sm" data-p="leaders">Leaders · RS 90+</button>
+      <button class="btn sm" data-p="base">Fresh base breakouts</button>
       <button class="btn sm" data-p="new">New listings (IPO)</button>
       <button class="btn sm" data-p="reset">Reset</button>
     </div>
@@ -32,16 +33,16 @@
 {% raw %}
 <script>
 const $=id=>document.getElementById(id);
-let ALL=[], VIEW=[], page=0, sortK='rs', sortD=-1, STG='2'; const PS=50;
+let BASE=false, ALL=[], VIEW=[], page=0, sortK='rs', sortD=-1, STG='2'; const PS=50;
 const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['rs','RS'],['stage','Stage'],['days_s2','Days in S2'],['from_hi','From 52W high'],['sma50','50 DMA'],['sma200','200 DMA'],['zone','Zone','l']];
+const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['rs','RS'],['stage','Stage'],['days_s2','Days in S2'],['from_hi','From 52W high'],['sma50','50 DMA'],['sma200','200 DMA'],['industry','Industry','l'],['zone','Zone','l']];
 $('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
 $('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k) sortBy(k)};
 
 function apply(){
   const t=$('s').value.trim().toUpperCase(), r=+$('rs').value, d=+$('dm').value, v=+$('mv').value||0;
   $('rsv').textContent=r; $('dv').textContent=d;
-  VIEW=ALL.filter(x=>(!t||x.symbol.includes(t))&&(!STG||x.stage==STG)&&((x.rs??0)>=r||STG==='0')&&(x.stage!=2||x.days_s2<=d)&&x.avg_vol>=v);
+  VIEW=ALL.filter(x=>(!t||x.symbol.includes(t))&&(!STG||x.stage==STG)&&((x.rs??0)>=r||STG==='0')&&(x.stage!=2||x.days_s2<=d)&&x.avg_vol>=v&&(!BASE||x.base_bo));
   VIEW.sort((a,b)=>{const A=a[sortK]??-1e18,B=b[sortK]??-1e18;return (A>B?1:A<B?-1:0)*sortD});
   page=0; draw();
 }
@@ -55,7 +56,7 @@ function draw(){
     <td><span class="rs ${x.rs>=80?'hi':x.rs<40?'lo':''}">${x.rs??'-'}</span></td>
     <td>${x.stage?`<span class="tag s${x.stage}">S${x.stage}</span>`:'<span class="tag" title="New listing - not enough history for Stage/RS">NEW</span>'}</td><td>${x.stage==2?x.days_s2:'-'}</td>
     <td class="${x.from_hi<-25?'neg':''}">${x.from_hi==null?'-':x.from_hi+'%'}</td><td>${f2(x.sma50)}</td><td>${f2(x.sma200)}</td>
-    <td class="l mut">${x.zone||''}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches these filters.</td></tr>';
+    <td class="l mut">${x.industry||'-'}</td><td class="l mut">${x.zone||''}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">Nothing matches these filters.</td></tr>';
 }
 $('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) location.href='/levels?s='+encodeURIComponent(tr.dataset.s)};
 $('stg').onclick=e=>{const b=e.target.closest('button'); if(!b) return; STG=b.dataset.v;
@@ -65,6 +66,8 @@ document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{
   const p=b.dataset.p;
   if(p=='fresh'){setStg('2');$('rs').value=80;$('dm').value=10}
   if(p=='new'){setStg('0');$('rs').value=1;$('dm').value=365;$('mv').value=0;sortK='listed_days';sortD=1}
+  if(p=='base'){setStg('2');$('rs').value=1;$('dm').value=10;BASE=true;sortK='vol_x';sortD=-1}
+  else BASE=false;
   if(p=='leaders'){setStg('2');$('rs').value=90;$('dm').value=365}
   if(p=='reset'){setStg('2');$('rs').value=80;$('dm').value=365;$('s').value='';$('mv').value=100000}
   apply();
@@ -77,7 +80,7 @@ fetch('/api/stocks').then(r=>r.json()).then(d=>{
     ['In Stage 4',ALL.filter(x=>x.stage==4).length,'']];
   $('stats').innerHTML=items.map((x,i)=>`<div class="stat"><small>${x[0]}</small><b id="st${i}">0</b></div>`).join('');
   items.forEach((x,i)=>animateNum($('st'+i),x[1],v=>Math.round(v).toLocaleString('en-IN')+x[2]));
-  apply();
+  apply(); if(new URLSearchParams(location.search).get('view')=='base') document.querySelector('[data-p=base]').click();
 });
 </script>
 {% endraw %}

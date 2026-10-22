@@ -3,13 +3,25 @@
 {% block header %}{% endblock %}
 {% block body %}
 <form method="post" class="card login">
+  <input type="hidden" name="_csrf" value="{{ csrf() }}">
+  {% if owner %}<input type="hidden" name="owner" value="1">{% endif %}
   <div class="hero">
     <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="Scope logo">
     <b class="wordmark">SCOPE</b>
     <span class="typer" data-text="PRECISION. VISION. SUCCESS.">PRECISION. VISION. SUCCESS.</span>
   </div>
-  <input type="password" name="password" placeholder="Password" autofocus>
+  {% if note %}<p class="okmsg">You are logged out.<br>{{ note }}</p>{% endif %}
+  {% if kicked %}<p class="warn" style="margin:0;font-size:13px">You were logged out because this account was opened on another device.</p>{% endif %}
+  {% if owner %}
+    <input type="password" name="password" placeholder="Owner password" autofocus>
+  {% else %}
+    <input type="text" name="ident" placeholder="Email or mobile number" autocomplete="username" autofocus>
+    <p class="note" style="margin:0">We will email you a one-time password (OTP).</p>
+  {% endif %}
   {% if err %}<p class="neg" style="margin:0">{{ err }}</p>{% endif %}
-  <button class="btn primary" type="submit" style="justify-content:center">Enter</button>
+  <button class="btn primary" type="submit" style="justify-content:center">{{ 'Enter' if owner else 'Send OTP' }}</button>
+  <p class="note" style="text-align:center;margin:0">
+    {% if owner %}<a href="{{ url_for('login') }}">User login</a>{% else %}New here? <a href="{{ url_for('register') }}">Register (5-day free trial)</a> · <a href="{{ url_for('login', owner=1) }}">Owner login</a>{% endif %}
+  </p>
 </form>
 {% endblock %}

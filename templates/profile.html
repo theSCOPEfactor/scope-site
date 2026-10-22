@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>My profile</h1><p class="sub">Your account, plan and payments</p></div></div>
+<div class="card plancard {{ 'ok' if plan_active and left and left>3 else ('warnb' if plan_active else 'bad') }}">
+  <div class="big">{{ msg }}</div>
+  {% if not plan_active %}<p class="note" style="margin:6px 0 0">You can pay below to continue using Scope.</p>{% endif %}
+</div>
+{% if err %}<p class="neg">{{ err }}</p>{% endif %}
+{% if ok %}<p class="pos">{{ ok }}</p>{% endif %}
+
+<div class="card">
+  <div class="pgrid">
+    <div><small>Name</small><b>{{ u['name'] }}</b></div>
+    <div><small>Email</small><b>{{ u['email'] }}</b></div>
+    <div><small>Mobile</small><b>{{ u['mobile'] }}</b></div>
+    <div><small>Plan</small><b>{{ 'Free trial' if u['plan']=='trial' else ('Subscription' if u['plan']=='paid' else 'None') }}{% if u['expires'] %} · till {{ fmt(u['expires']) }}{% endif %}</b></div>
+  </div>
+  <p class="note">To change any detail, contact the owner.</p>
+</div>
+
+<div class="card">
+  <h2>Payment</h2>
+  <p class="mut">Choose a plan, pay by UPI, then enter the transaction (UTR) number. Your plan is extended when the owner confirms it.
+  {% if u['trial_used'] %}The free trial can be used only once.{% endif %}</p>
+  <form method="post" action="{{ url_for('pay') }}" class="form" id="payf">
+    <input type="hidden" name="_csrf" value="{{ csrf() }}">
+    <label class="fld">Duration<select name="months" id="mo">{% for p in plans %}<option value="{{ p['months'] }}" data-price="{{ p['price'] }}">{{ p['months'] }} month{{ 's' if p['months']>1 }} · ₹{{ '{:,}'.format(p['price']) }}</option>{% endfor %}</select></label>
+    <div class="fld">Amount to pay<b id="amt" style="font-size:22px;color:var(--tx);text-transform:none">-</b></div>
+    {% if upi %}
+    <div class="fld full">Pay to UPI ID<b style="font-size:16px;color:var(--tx);text-transform:none;user-select:all">{{ upi }}</b>
+      <a class="btn sm" id="upil" href="#" style="width:max-content">Open UPI app</a></div>
+    {% else %}<p class="warn full">The owner has not set the UPI ID yet.</p>{% endif %}
+    <label class="fld full">UPI transaction / UTR number<input name="utr" placeholder="e.g. 4281 9376 5012" autocomplete="off"></label>
+    <div class="full"><button class="btn primary" type="submit">Submit payment</button></div>
+  </form>
+  {% if pays %}
+  <div class="wrap" style="margin-top:14px"><table><thead><tr><th class="l">Date</th><th>Months</th><th>Amount</th><th class="l">UTR</th><th class="l">Status</th></tr></thead><tbody>
+  {% for p in pays %}<tr><td class="l">{{ fmt(p['created']) }}</td><td>{{ p['months'] }}</td><td>₹{{ '{:,}'.format(p['amount']) }}</td><td class="l">{{ p['utr'] }}</td>
+    <td class="l"><span class="tag {{ 's2' if p['status']=='approved' else ('s4' if p['status']=='rejected' else 's1') }}">{{ p['status']|capitalize }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var UPI={{ upi|tojson }},UN={{ upi_name|tojson }};
+function upd(){var o=document.getElementById('mo').selectedOptions[0];if(!o)return;var m=+o.value,A=+o.dataset.price;document.getElementById('amt').textContent='₹'+A.toLocaleString('en-IN');
+  var a=document.getElementById('upil');if(a)a.href='upi://pay?pa='+encodeURIComponent(UPI)+'&pn='+encodeURIComponent(UN)+'&am='+A+'&cu=INR&tn=Scope%20subscription'}
+document.getElementById('mo').onchange=upd;upd();
+</script>
+{% endblock %}

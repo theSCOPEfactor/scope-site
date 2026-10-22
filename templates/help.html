@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Help</h1><p class="sub">What the stages, RS and levels on this site mean</p></div></div>
+
+<div class="card">
+  <h2>Stage 1 to 4</h2>
+  <p class="mut">Every stock is placed in one of four stages from its daily price and its 50, 150 and 200 day averages (DMA). The idea comes from stage analysis: a stock moves from resting, to rising, to topping, to falling, and then repeats.</p>
+  <div class="wrap"><table><thead><tr><th class="l">Stage</th><th class="l">Name</th><th class="l">What it means</th><th class="l">Rule used on this site</th></tr></thead><tbody>
+    <tr><td class="l"><span class="tag s1">Stage 1</span></td><td class="l"><b>Base</b></td><td class="l">Resting or moving sideways. Neither buyers nor sellers are in control.</td><td class="l">Anything that is not Stage 2, 3 or 4.</td></tr>
+    <tr><td class="l"><span class="tag s2">Stage 2</span></td><td class="l"><b>Advancing</b></td><td class="l">A healthy uptrend. This is the stage most trend followers look at.</td><td class="l">All of these together: price above the 50, 150 and 200 DMA · 50 DMA above 150 DMA · 150 DMA above 200 DMA · 200 DMA rising versus 20 days ago · price within 25% of its 52 week high · price at least 30% above its 52 week low.</td></tr>
+    <tr><td class="l"><span class="tag s3">Stage 3</span></td><td class="l"><b>Topping</b></td><td class="l">The uptrend is losing strength. Price slips below the short average but has not broken down yet.</td><td class="l">Not Stage 2 or 4, price below the 50 DMA, and still above 95% of the 200 DMA.</td></tr>
+    <tr><td class="l"><span class="tag s4">Stage 4</span></td><td class="l"><b>Declining</b></td><td class="l">A downtrend. Price is weak and the long average is falling.</td><td class="l">Price below the 200 DMA, 200 DMA not rising, and 50 DMA below the 200 DMA.</td></tr>
+    <tr><td class="l"><span class="tag">New</span></td><td class="l"><b>New listing</b></td><td class="l">Too new for the stage to be worked out.</td><td class="l">Fewer than 200 trading days of price history. Stage, RS and 52 week levels are not calculated.</td></tr>
+  </tbody></table></div>
+  <p class="note">The stage is only a description of the chart. In the Backtest page, being in Stage 2 mattered more than any single price level, but it still does not predict the next day.</p>
+</div>
+
+<div class="card">
+  <h2>Other numbers</h2>
+  <div class="wrap"><table><tbody>
+    <tr><td class="l"><b>RS (relative strength)</b></td><td class="l">A score from 1 to 99. It ranks the stock's price change over the last 3, 6, 9 and 12 months (weighted 40%, 20%, 20%, 20%) against all other stocks. RS 90 means it did better than about 90% of stocks. Higher is stronger.</td></tr>
+    <tr><td class="l"><b>Days in Stage 2</b></td><td class="l">How many trading days in a row the stock has been in Stage 2. A small number means a fresh Stage 2.</td></tr>
+    <tr><td class="l"><b>From 52W high</b></td><td class="l">How far the price is below its highest price of the last year.</td></tr>
+    <tr><td class="l"><b>Avg volume</b></td><td class="l">Average number of shares traded per day (last 20 days). Low volume stocks are harder to buy and sell.</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card">
+  <h2>Price levels</h2>
+  <p class="mut">Levels come from a volume profile: the last year of price data is split into price bands and Scope counts how much trading happened in each band. The band where the most trading happened and the range that holds 70% of all trading are the main levels.</p>
+  <div class="wrap"><table><tbody>
+    <tr><td class="l"><b>VLOW</b> · Break down</td><td class="l">Bottom of the range that holds 70% of trading. Price falling below it is a break down.</td></tr>
+    <tr><td class="l"><b>VHIGH</b> · Breakout</td><td class="l">Top of that range. Price moving above it is a breakout.</td></tr>
+    <tr><td class="l"><b><span data-mg></span></b> Magnet (Point)</td><td class="l">The single price where the most trading happened. Price is often pulled back towards it.</td></tr>
+    <tr><td class="l"><b><span data-lv="br"></span></b></td><td class="l">A quarter of the way up from VLOW to VHIGH.</td></tr>
+    <tr><td class="l"><b><span data-lv="sr"></span></b></td><td class="l">Three quarters of the way up from VLOW to VHIGH.</td></tr>
+    <tr><td class="l"><b><span data-lv="t1"></span></b></td><td class="l">1.272 times the range, measured from VLOW (above VHIGH).</td></tr>
+    <tr><td class="l"><b><span data-lv="d1"></span> and <span data-lv="d2"></span></b></td><td class="l">Levels below VLOW, at 0.272 and 0.618 of the range under it.</td></tr>
+  </tbody></table></div>
+  <p class="note">Zones on the Levels page: Above VHIGH, Near VHIGH (within the top quarter), Inside range, Near VLOW (within the bottom quarter), Below VLOW.</p>
+</div>
+
+<div class="card">
+  <h2>Open zone</h2>
+  <p class="mut">Type VLOW, VHIGH, the magnet and today's opening price. The page shows where the open sits on the ladder and what happened on earlier days that opened in the same place: which nearby level was touched first, how often price came back from it, and how the day ended compared with all days. Only the opening price is used.</p>
+</div>
+
+<div class="card">
+  <h2>New listings</h2>
+  <p class="mut">New IPOs show live price and intraday levels only, because there is not enough history for 52 week levels, Stage or RS. Add a symbol to <b>watch.txt</b> on GitHub (one per line) and it shows up within about 15 minutes in market hours.</p>
+</div>
+
+<p class="note">Everything here is calculated from past prices with fixed rules. It describes charts, it is not advice to buy or sell.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-lv]').forEach(function(e){e.textContent=LVNAME(e.dataset.lv)});
+document.querySelectorAll('[data-mg]').forEach(function(e){e.innerHTML=MAGNET(16)});
+</script>
+{% endblock %}
