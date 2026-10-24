@@ -44,13 +44,20 @@ h3{margin:0 0 4px;font-size:17px}
   transition:transform .45s cubic-bezier(.2,.8,.2,1),filter .45s}
 .brand:hover .logo-img,.hero:hover .logo-img{transform:rotate(-5deg) scale(1.07);filter:drop-shadow(0 0 22px rgba(245,192,74,.65))}
 .bt{display:block}
-.wordmark{display:block;font:800 21px/1 'Montserrat','Inter',system-ui,sans-serif;letter-spacing:.3em;
-  background:linear-gradient(90deg,#fff 0%,#a9ccff 55%,#f5c04a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+@font-face{font-family:'Herr Von Muellerhoff';src:url(fonts/herr-von-muellerhoff-latin-400-normal.woff2) format('woff2');font-display:swap}
+@font-face{font-family:'Special Elite';src:url(fonts/special-elite-latin-400-normal.woff2) format('woff2');font-display:swap}
+.wm{display:block;width:max-content}
+.wordmark{display:block;font:400 44px/1.05 'Herr Von Muellerhoff','Snell Roundhand','Segoe Script','Brush Script MT',cursive;letter-spacing:0;
+  padding:0 .12em;background:linear-gradient(90deg,#38bdf8 0%,#6aa8ff 45%,#e8a05a 62%,#f08a2c 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:wipe 1.8s cubic-bezier(.4,0,.2,1) .4s both}
+@keyframes wipe{from{clip-path:inset(-30% 100% -30% -5%)}to{clip-path:inset(-30% -10% -30% -5%)}}
+.flo{display:block;height:2px;margin:1px auto 0;border-radius:2px;width:0;background:linear-gradient(90deg,#2ea8ff,#7fb0ff,#ffb35e,#ff8a1f);animation:flow 1.2s cubic-bezier(.4,0,.2,1) 1.6s forwards}
+@keyframes flow{to{width:72%}}
 .typer{display:block;margin-top:6px;min-height:9px;white-space:nowrap;color:var(--mut);
-  font:500 8.5px/1 'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;letter-spacing:.34em}
+  font:400 8.5px/1 'Special Elite','Courier New',Courier,monospace;letter-spacing:.14em;color:#9fc4f0}
 .typer::after{content:"";display:inline-block;width:4px;height:9px;margin-left:3px;vertical-align:-1px;background:var(--gold);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
-.side .typer{font-size:6.6px;letter-spacing:.2em}
+.side .typer{font-size:7.4px;letter-spacing:.06em}
 nav{display:flex;gap:4px;flex-wrap:wrap}
 nav a{color:var(--mut);padding:7px 13px;border-radius:10px;transition:all .2s}
 nav a:hover{color:var(--tx);background:var(--glass)}
@@ -146,8 +153,8 @@ tr.now{background:rgba(96,165,250,.12)}
 /* home */
 .hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:26px 0 10px}
 .hero .logo-img{width:132px;height:132px;filter:drop-shadow(0 0 30px rgba(96,165,250,.55))}
-.hero .wordmark{font-size:44px;margin-top:16px;letter-spacing:.34em;padding-left:.34em}
-.hero .typer{font-size:11px;margin-top:14px;letter-spacing:.5em}
+.hero .wordmark{font-size:96px;margin-top:6px}
+.hero .typer{font-size:12px;margin-top:12px;letter-spacing:.14em}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:18px}
 .tile{display:block;padding:20px;color:var(--tx);transition:transform .25s cubic-bezier(.2,.8,.2,1),border-color .25s}
 .tile:hover{border-color:rgba(255,255,255,.3)}
@@ -185,7 +192,7 @@ tr.now{background:rgba(96,165,250,.12)}
 body.loginpage main{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 220px)}
 .login{width:340px;display:flex;flex-direction:column;gap:12px;padding:26px}
 .login .hero{padding:0 0 8px}.login .hero .logo-img{width:88px;height:88px}
-.login .hero .wordmark{font-size:26px;margin-top:10px}.login .hero .typer{font-size:9px;letter-spacing:.4em}
+.login .hero .wordmark{font-size:64px;margin-top:6px}.login .hero .typer{font-size:9.5px;letter-spacing:.12em}
 
 /* disclaimer */
 footer{max-width:1200px;margin:10px auto 0;padding:0 18px 30px}
@@ -195,7 +202,7 @@ footer{max-width:1200px;margin:10px auto 0;padding:0 18px 30px}
 
 @media(max-width:760px){
   .dgrid{grid-template-columns:1fr}.top{padding:10px 12px}main{padding:16px 12px 6px}
-  .hero .wordmark{font-size:32px}.hero .logo-img{width:104px;height:104px}.stat b{font-size:16px}
+  .hero .wordmark{font-size:72px}.hero .logo-img{width:104px;height:104px}.stat b{font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.lvl .ln{stroke-dashoffset:0}.lvl .lt{opacity:1}}
 
