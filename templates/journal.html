@@ -237,14 +237,24 @@ function renderPlan(){
       :`Your journal's average trade is currently ${inr(ex)}, so this target is not yet supported by your own results.`;
   } else exp='Log at least 5 closed trades and this plan will compare itself with your real average trade.';
 
+  /* ahead of plan: how long can you stay out and still be on plan? */
+  let rest='';
+  const fd=s=>ScopePlan.parse(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  if(e>0&&actual>0){
+    if(actual>=B.T) rest=`<div class="restbox ok"><b>Target achieved ✓</b> You have earned ${inr(actual)}, which is more than the ${inr(B.T)} this plan asked for. You do not need to trade any more for this plan (till ${fd(B.last)}); trade only if you want to.</div>`;
+    else{
+      let k=-1; for(let i=Math.max(0,e-1);i<B.N;i++){ if(B.eq[i+1]-CAP>actual){k=i;break} }
+      if(k>=0&&B.days[k]>today) rest=`<div class="restbox ok"><b>You are ahead of plan ✓</b> Your ${inr(actual)} already covers the plan up to <b>${fd(B.days[Math.max(0,k-1)])}</b>. If you do not trade until then, you are still on plan.</div>`;
+    }
+  }
   ROWS=buildRows(B,p.start,VIEW);
   const tot=ROWS.reduce((a,r)=>({g:a.g+r.gain,a:a.a+(r.from<=today?r.actual:0)}),{g:0,a:0});
   const body=ROWS.map(r=>{
-    const started=r.from<=today, now=started&&r.to>=today, v=r.actual-r.gain;
+    const started=r.from<=today, now=started&&r.to>=today, v=r.actual-r.gain, covered=r.to>=today&&actual>0&&actual>=r.e-CAP;
     return `<tr class="${now?'now':''}"><td class="l">${label(r,VIEW)}${now?' <span class="badge b-ok">now</span>':''}</td><td>${r.n}</td>
       <td>${pct(r.pc)}</td><td>${inr(r.gain)}</td><td>${inr(r.e)}</td>
       <td class="${started?cls(r.actual):'mut'}">${started?inr(r.actual):'–'}</td>
-      <td class="${started&&r.to<today?cls(v):'mut'}">${started&&r.to<today?inr(v):'–'}</td></tr>`}).join('');
+      <td class="${covered?'pos':(started&&r.to<today?cls(v):'mut')}">${r.to<today?inr(v):(covered?'✓ covered':'–')}</td></tr>`}).join('');
 
   out.innerHTML=`
   <div class="card">
@@ -260,6 +270,7 @@ function renderPlan(){
     <div class="row" style="justify-content:space-between"><span>Progress (realized + open): <b class="${cls(actual)}">${inr(actual)}</b> of ${inr(B.T)}</span>${status}</div>
     <div class="bar" title="Earned so far"><i style="width:${doneP}%"></i></div>
     <div class="row mut" style="justify-content:space-between;font-size:12px;margin-top:-6px"><span>${Math.round(doneP)}% of target earned</span><span>${timeP}% of time used (${Math.min(e,B.N)} of ${B.N} trading days)</span></div>
+    ${rest}
     <p class="note" style="margin-top:12px">${exp}</p>
   </div>
   <div class="card">
@@ -272,7 +283,7 @@ function renderPlan(){
       <tbody>${body}</tbody>
       <tfoot><tr><td class="l">Total</td><td>${B.N}</td><td>${pct(B.R)}</td><td>${inr(tot.g)}</td><td>${inr(CAP+B.T)}</td><td class="${cls(tot.a)}">${inr(tot.a)}</td><td></td></tr></tfoot>
     </table></div>
-    <p class="note">Actual ₹ comes from your closed trades in the Journal (by exit date). This plan is arithmetic only: the higher the pace you ask of yourself, the higher the risk. It is not a forecast or advice.</p>
+    <p class="note">Actual ₹ comes from your closed trades in the Journal (by exit date). “✓ covered” means your total earnings so far already reach that period's target, so you are on plan even if you do not trade then. This plan is arithmetic only: the higher the pace you ask of yourself, the higher the risk. It is not a forecast or advice.</p>
   </div>`;
   $('vseg').onclick=ev=>{const b=ev.target.closest('button'); if(b){VIEW=b.dataset.v; renderPlan()}};
   $('csvbtn').onclick=downloadCsv;
