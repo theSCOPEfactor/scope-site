@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Option chain</h1>
+  <p class="sub">Open interest, IV and key strikes for Nifty, Bank Nifty and Sensex · <span id="upd">loading…</span></p></div></div>
+
+<div class="card">
+  <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <label class="fld">Index<select id="sel_idx"></select></label>
+    <label class="fld">Expiry<select id="sel_exp"></select></label>
+    <label class="fld">What do you want to see?<select id="sel_view">
+      <option value="summary">Summary and key strikes</option>
+      <option value="oi">Open interest by strike (Calls vs Puts)</option>
+      <option value="doi">Change in OI since previous close</option>
+      <option value="iv">IV smile (implied volatility by strike)</option>
+      <option value="chain">Full option chain table</option>
+      <option value="buildup">Buildup (price + OI) table</option>
+      <option value="scope">Scope levels vs option-chain strikes</option>
+    </select></label>
+    <label class="fld">Strikes shown<select id="sel_rng">
+      <option value="8">ATM ± 8</option><option value="12" selected>ATM ± 12</option><option value="20">ATM ± 20</option><option value="999">All</option>
+    </select></label>
+  </div>
+</div>
+
+<div id="out"><div class="card empty">Loading…</div></div>
+
+{% if is_admin %}
+<div class="card ownerbox" id="ownerbox">
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0">How to read this <span class="tag s1">Owner only</span></h2></div>
+  <p class="note" style="margin:4px 0 10px">Aa section fakat tamne (owner) dekhay che. Members ne nathi dekhato.</p>
+  <div id="today" class="restbox" style="display:none"></div>
+
+  <div data-help="summary">
+    <h3>Summary ma shu che</h3>
+    <ul>
+      <li><b>Highest Call OI strike:</b> je strike par call options ni open position sauthi vadhu che. Call sellers (writers) ni pakad ahi vadhu hoy, etle ghani vaar upar na bhaag ma <b>resistance</b> tarike jovay che.</li>
+      <li><b>Highest Put OI strike:</b> put writers ni pakad sauthi vadhu. Niche na bhaag ma <b>support</b> tarike jovay che.</li>
+      <li><b>PCR (Put OI ÷ Call OI):</b> 1 thi upar = put position vadhu, 0.7 thi niche = call position vadhu. Ek ank par bharoso na karo, e fakat mood batave che. Aa page ma PCR fakat dekhadela strikes nu che.</li>
+      <li><b>Max pain:</b> je strike par option buyers ne sauthi vadhu nuksan (sellers ne ochhu payout). Expiry na divase price ghani vaar tya taraf kheenchay che, pan e niyam nathi.</li>
+      <li><b>ATM straddle:</b> ATM call + put no bhav. Expiry sudhi market je move apekshit rakhe che teno anuman (± points). Straddle moto hoy to market moti hal-chal ni apeksha rakhe che.</li>
+      <li><b>ATM IV:</b> ATM option no implied volatility. Event (result, budget, RBI) pehla vadhe, pachhi ghate (IV crush).</li>
+    </ul>
+    <p class="note">Aa badhu OI par aadharit sanket che. OI ma khabar nathi padti ke buyer ke seller koni vadhu che, etle "resistance/support" ne pakka level na maano. Expiry na divase badlav jaldi aave che.</p>
+  </div>
+
+  <div data-help="oi" hidden>
+    <h3>OI by strike</h3>
+    <ul>
+      <li>Moti <b>blue (Call)</b> bar = tya call OI vadhu. Moti <b>gold (Put)</b> bar = tya put OI vadhu.</li>
+      <li>Spot ni upar nu sauthi motu call bar ghani vaar upar nu "diwal" tarike, ane spot ni niche nu sauthi motu put bar niche nu "diwal" tarike jovay che.</li>
+      <li>Jo spot ek diwal ni nazdik pahonche ane OI ghatva lage (next view: Change in OI) to e diwal kamjor thai rahi hoy tevu sanket.</li>
+      <li>Dotted line = max pain, dashed line = spot.</li>
+    </ul>
+  </div>
+
+  <div data-help="doi" hidden>
+    <h3>Change in OI</h3>
+    <ul>
+      <li>Kal na close karta aaj nu OI ketlu vadhyu/ghatyu. Aaj ni navi position kya banti hati e ahi dekhay.</li>
+      <li><b>Call OI vadhe + price ghate/sthir:</b> navi call selling, upar nu level majboot thatu hoy tevu.</li>
+      <li><b>Put OI vadhe + price vadhe/sthir:</b> navi put selling, niche nu level majboot thatu hoy tevu.</li>
+      <li><b>OI ghate:</b> position band thai rahi che (unwinding ke covering). Price sathe jovo: "Buildup" view ma.</li>
+      <li>Pehla divas ma "previous close" no data na hoy to khali dekhay; bijaa divase thi chalu thase.</li>
+    </ul>
+  </div>
+
+  <div data-help="iv" hidden>
+    <h3>IV smile / skew</h3>
+    <ul>
+      <li>Darek strike no implied volatility (OTM side no). Normal rite aakar "smile" jevo ke tirchho hoy.</li>
+      <li><b>Niche na strikes (puts) no IV vadhu:</b> traders niche ni suraksha (put) mehngi kharidi rahya che, ghana divas ma aa normal che.</li>
+      <li><b>Upar na strikes (calls) no IV vadhu:</b> upar na move ni apeksha / call mehngu, kyarek short squeeze ke event pehla.</li>
+      <li>IV potana ja itihas sathe sarkhavo. Aa page ma history nathi, etle roj note karo to samajvu saral.</li>
+    </ul>
+  </div>
+
+  <div data-help="chain" hidden>
+    <h3>Full chain table</h3>
+    <ul>
+      <li>Vachche strike, dabi bajoo Calls, jamni bajoo Puts. ATM strike highlighted.</li>
+      <li><b>ITM</b> (in the money) options ma intrinsic value hoy che; <b>OTM</b> ma fakat samay no bhav. IV hamesha OTM side no vadhu vishwasniy che.</li>
+      <li>Volume ochhu ane bid-ask paheloo hoy tya trade karvu mehnu pade (liquidity ochhi).</li>
+    </ul>
+  </div>
+
+  <div data-help="buildup" hidden>
+    <h3>Buildup</h3>
+    <ul>
+      <li>Price ↑ + OI ↑ = <b>Long buildup</b> (e contract kharidnar vadhya). Price ↓ + OI ↑ = <b>Short buildup</b> (e contract vechnar vadhya).</li>
+      <li>Price ↑ + OI ↓ = <b>Short covering</b>. Price ↓ + OI ↓ = <b>Long unwinding</b>.</li>
+      <li>Dhyan: call ni "long buildup" market upar ni apeksha, pan put ni "long buildup" market niche ni apeksha (ke suraksha) batave che. Contract pramane vaanchjo.</li>
+    </ul>
+  </div>
+
+  <div data-help="scope" hidden>
+    <h3>Scope levels vs option strikes</h3>
+    <ul>
+      <li>Tamara VLOW / VHIGH / Magnet level ni nazdik jo sauthi vadhu Call OI ke Put OI no strike aave to e level ne vadhu pushti male (be alag rite ek j jagya batave).</li>
+      <li>Overlap na hoy to bhe ne alag j jovo, jabardasti ek karvu nahi.</li>
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<p class="note" id="foot">Data is a snapshot (updated about every 30 minutes in market hours), not live. Open interest and IV are shown as information only; this is not advice to buy or sell.</p>
+{% endblock %}
+
+{% block scripts %}
+{% raw %}
+<script>
+const $=id=>document.getElementById(id);
+const f2=n=>n==null||isNaN(n)?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const f0=n=>n==null||isNaN(n)?'-':Number(n).toLocaleString('en-IN',{maximumFractionDigits:0});
+const lk=n=>n==null?'-':(Math.abs(n)>=1e7?(n/1e7).toFixed(2)+' Cr':Math.abs(n)>=1e5?(n/1e5).toFixed(2)+' L':f0(n));
+const sg=n=>n==null?'-':(n>0?'+':'')+lk(n);
+const COL={ce:'#60a5fa',pe:'#f5c04a'};
+let OPT=null, SC=[], VIEW='summary';
+
+function cur(){
+  if(!OPT||!OPT.indices) return null;
+  const ix=OPT.indices[$('sel_idx').value]; if(!ix) return null;
+  const ch=ix.chains[$('sel_exp').value]; if(!ch) return null;
+  return {ix,ch};
+}
+function shown(c){
+  const rows=c.ch.rows, spot=c.ix.spot;
+  let a=0,d=1e18; rows.forEach((r,i)=>{const x=Math.abs(r.strike-spot); if(x<d){d=x;a=i}});
+  const n=+$('sel_rng').value; const lo=Math.max(0,a-n), hi=Math.min(rows.length-1,a+n);
+  return {rows:rows.slice(lo,hi+1), atm:rows[a], all:rows};
+}
+function analyse(c){
+  const s=shown(c), rows=s.rows, spot=c.ix.spot;
+  const oi=(r,t)=>r[t]?r[t].oi:0;
+  const ceT=rows.reduce((a,r)=>a+oi(r,'ce'),0), peT=rows.reduce((a,r)=>a+oi(r,'pe'),0);
+  const maxBy=(t)=>rows.reduce((b,r)=>oi(r,t)>(b?oi(b,t):-1)?r:b,null);
+  const mc=maxBy('ce'), mp=maxBy('pe');
+  let mpain=null,best=1e30;
+  s.all.forEach(K=>{ let p=0; s.all.forEach(r=>{p+=oi(r,'ce')*Math.max(0,K.strike-r.strike)+oi(r,'pe')*Math.max(0,r.strike-K.strike)}); if(p<best){best=p;mpain=K.strike} });
+  const atm=s.atm, straddle=(atm.ce?atm.ce.ltp:0)+(atm.pe?atm.pe.ltp:0);
+  const ivs=[atm.ce&&atm.ce.iv,atm.pe&&atm.pe.iv].filter(x=>x!=null);
+  const atmIv=ivs.length?ivs.reduce((a,b)=>a+b,0)/ivs.length:null;
+  // skew: ~2% OTM put vs call
+  const near=(t)=>s.all.reduce((b,r)=>Math.abs(r.strike-t)<Math.abs((b?b.strike:1e18)-t)?r:b,null);
+  const pr=near(spot*0.98), cr=near(spot*1.02);
+  const skew=(pr&&pr.pe&&cr&&cr.ce&&pr.pe.iv!=null&&cr.ce.iv!=null)?pr.pe.iv-cr.ce.iv:null;
+  return {s,rows,spot,ceT,peT,pcr:ceT?peT/ceT:null,mc,mp,mpain,atm,straddle,movePct:straddle/spot*100,atmIv,skew};
+}
+
+/* ---------- chart ---------- */
+function barChart(rows,spot,mpain,vals,opt){
+  const W=920,H=330,l=58,r=14,t=16,b=44, n=rows.length;
+  const all=rows.flatMap(x=>vals(x).map(v=>v||0)); let mx=Math.max(...all,1), mn=opt.neg?Math.min(...all,0):0;
+  if(opt.neg&&mn===0) mn=-mx*0.05;
+  const Y=v=>t+(1-(v-mn)/(mx-mn))*(H-t-b), bw=(W-l-r)/n, gw=bw*0.8;
+  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">`;
+  for(let i=0;i<=4;i++){const v=mn+(mx-mn)*i/4; g+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${l-6}" y="${Y(v)+4}" text-anchor="end" fill="#97a3c4" font-size="11">${lk(v)}</text>`}
+  if(opt.neg) g+=`<line x1="${l}" x2="${W-r}" y1="${Y(0)}" y2="${Y(0)}" stroke="rgba(255,255,255,.3)"/>`;
+  rows.forEach((x,i)=>{
+    const [a,c]=vals(x), x0=l+i*bw+(bw-gw)/2, hw=gw/2-1, base=Y(opt.neg?0:mn);
+    [[a,COL.ce,x0,'Call'],[c,COL.pe,x0+hw+2,'Put']].forEach(([v,col,xx,nm])=>{
+      if(v==null) return; const y=Y(v), h=Math.abs(base-y);
+      g+=`<rect x="${xx}" y="${Math.min(y,base)}" width="${hw}" height="${Math.max(h,1)}" fill="${col}" opacity=".9" rx="2"><title>${x.strike} ${nm}: ${f0(v)}</title></rect>`;
+    });
+    if(rows.length<=26||i%2===0) g+=`<text x="${l+i*bw+bw/2}" y="${H-b+16}" text-anchor="middle" fill="#97a3c4" font-size="10" transform="rotate(-40 ${l+i*bw+bw/2} ${H-b+16})">${f0(x.strike)}</text>`;
+  });
+  const xs=v=>{ // price -> x (between strikes)
+    if(v<=rows[0].strike) return l+bw/2; if(v>=rows[n-1].strike) return l+(n-0.5)*bw;
+    for(let i=0;i<n-1;i++) if(v>=rows[i].strike&&v<=rows[i+1].strike) return l+(i+0.5+(v-rows[i].strike)/(rows[i+1].strike-rows[i].strike))*bw; return l};
+  g+=`<line x1="${xs(spot)}" x2="${xs(spot)}" y1="${t}" y2="${H-b}" stroke="#34d399" stroke-dasharray="5 4"/><text x="${xs(spot)+4}" y="${t+10}" fill="#34d399" font-size="11">Spot ${f2(spot)}</text>`;
+  if(mpain!=null) g+=`<line x1="${xs(mpain)}" x2="${xs(mpain)}" y1="${t}" y2="${H-b}" stroke="#a78bfa" stroke-dasharray="2 3"/><text x="${xs(mpain)+4}" y="${t+24}" fill="#a78bfa" font-size="11">Max pain ${f0(mpain)}</text>`;
+  return g+'</svg><div class="row" style="gap:16px;font-size:12px;color:var(--mut);margin-top:6px"><span><span class="dot" style="background:'+COL.ce+'"></span>Calls</span><span><span class="dot" style="background:'+COL.pe+'"></span>Puts</span></div>';
+}
+function lineChart(pts,spot){
+  const W=920,H=300,l=48,r=14,t=16,b=36, P=pts.filter(p=>p.y!=null);
+  if(P.length<2) return '<p class="mut">Not enough IV data for this expiry yet.</p>';
+  const xs=P.map(p=>p.x), ys=P.map(p=>p.y), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys)*0.95, y1=Math.max(...ys)*1.05;
+  const X=v=>l+(v-x0)/(x1-x0)*(W-l-r), Y=v=>t+(1-(v-y0)/(y1-y0))*(H-t-b);
+  let g=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">`;
+  for(let i=0;i<=4;i++){const v=y0+(y1-y0)*i/4; g+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${l-6}" y="${Y(v)+4}" text-anchor="end" fill="#97a3c4" font-size="11">${v.toFixed(1)}%</text>`}
+  g+=`<path d="${P.map((p,i)=>(i?'L':'M')+X(p.x).toFixed(1)+' '+Y(p.y).toFixed(1)).join('')}" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linejoin="round"/>`;
+  P.forEach(p=>g+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3" fill="#2dd4bf"><title>${f0(p.x)}: IV ${p.y}%</title></circle>`);
+  P.filter((p,i)=>P.length<=26||i%2===0).forEach(p=>g+=`<text x="${X(p.x)}" y="${H-b+16}" text-anchor="middle" fill="#97a3c4" font-size="10" transform="rotate(-40 ${X(p.x)} ${H-b+16})">${f0(p.x)}</text>`);
+  g+=`<line x1="${X(Math.min(Math.max(spot,x0),x1))}" x2="${X(Math.min(Math.max(spot,x0),x1))}" y1="${t}" y2="${H-b}" stroke="#34d399" stroke-dasharray="5 4"/><text x="${X(Math.min(Math.max(spot,x0),x1))+4}" y="${t+10}" fill="#34d399" font-size="11">Spot</text>`;
+  return g+'</svg><p class="note">IV of the out-of-the-money side (puts below spot, calls above spot).</p>';
+}
+
+/* ---------- views ---------- */
+function stat(l,v,sub,c){return `<div class="stat"><small>${l}</small><b class="${c||''}">${v}</b>${sub?`<em style="display:block;font-style:normal;font-size:12px;color:var(--mut);margin-top:2px">${sub}</em>`:''}</div>`}
+function viewSummary(c,A){
+  const tv=`Call OI strike: ${f0(A.mc.strike)} | Put OI strike: ${f0(A.mp.strike)} | Max pain: ${f0(A.mpain)} | PCR: ${A.pcr==null?'-':A.pcr.toFixed(2)} | Expiry ${c.ch.expiry}`;
+  return `<div class="card"><div class="stats">
+    ${stat('Spot',f2(A.spot),c.ix.prev_close?((A.spot/c.ix.prev_close-1)*100>=0?'+':'')+((A.spot/c.ix.prev_close-1)*100).toFixed(2)+'% today':'')}
+    ${stat('ATM strike',f0(A.atm.strike),'Expiry in '+c.ch.days+' days')}
+    ${stat('PCR (OI)',A.pcr==null?'-':A.pcr.toFixed(2),'Put OI '+lk(A.peT)+' / Call OI '+lk(A.ceT))}
+    ${stat('Highest Call OI strike',f0(A.mc.strike),lk(A.mc.ce.oi)+' contracts')}
+    ${stat('Highest Put OI strike',f0(A.mp.strike),lk(A.mp.pe.oi)+' contracts')}
+    ${stat('Max pain',f0(A.mpain),A.mpain>A.spot?f0(A.mpain-A.spot)+' pts above spot':f0(A.spot-A.mpain)+' pts below spot')}
+    ${stat('ATM straddle',f2(A.straddle),'about ± '+f0(A.straddle)+' pts ('+A.movePct.toFixed(2)+'%) implied')}
+    ${stat('ATM IV',A.atmIv==null?'-':A.atmIv.toFixed(1)+'%',A.skew==null?'':'Put − Call IV (2% OTM): '+(A.skew>=0?'+':'')+A.skew.toFixed(1))}
+  </div>
+  <div class="row" style="margin-top:14px;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary sm" id="cpy">Copy 4 numbers for TradingView</button><span class="mut" id="cpyt" style="font-size:12px;word-break:break-all">${tv}</span></div>
+  <p class="note">PCR, highest-OI strikes and max pain use only the strikes shown (change “Strikes shown” above). Lot size ${c.ch.lot||'-'}.</p></div>`;
+}
+function viewOI(c,A){
+  return `<div class="card"><h2>Open interest by strike</h2>${barChart(A.rows,A.spot,A.mpain,r=>[r.ce?r.ce.oi:null,r.pe?r.pe.oi:null],{})}</div>`;
+}
+function viewDOI(c,A){
+  const has=A.rows.some(r=>(r.ce&&r.ce.doi!=null)||(r.pe&&r.pe.doi!=null));
+  if(!has) return `<div class="card"><h2>Change in OI</h2><p class="mut">Not available yet. It starts from the next trading day, when the previous close OI is saved.${OPT.base_date?'':''}</p></div>`;
+  const tc=A.rows.reduce((a,r)=>a+(r.ce&&r.ce.doi||0),0), tp=A.rows.reduce((a,r)=>a+(r.pe&&r.pe.doi||0),0);
+  return `<div class="card"><h2>Change in OI since previous close <span class="mut" style="font-size:12px">(${OPT.base_date||''})</span></h2>
+    <div class="stats" style="margin-bottom:10px">${stat('Calls OI change',sg(tc),'',tc>0?'pos':'neg')}${stat('Puts OI change',sg(tp),'',tp>0?'pos':'neg')}</div>
+    ${barChart(A.rows,A.spot,A.mpain,r=>[r.ce?r.ce.doi:null,r.pe?r.pe.doi:null],{neg:true})}</div>`;
+}
+function viewIV(c,A){
+  const pts=A.rows.map(r=>({x:r.strike,y:(r.strike<A.spot?(r.pe&&r.pe.iv):(r.ce&&r.ce.iv))}));
+  return `<div class="card"><h2>IV smile</h2>${lineChart(pts,A.spot)}</div>`;
+}
+function viewChain(c,A){
+  const rows=A.rows.map(r=>{const ce=r.ce||{},pe=r.pe||{},isA=r.strike===A.atm.strike;
+    return `<tr class="${isA?'now':''}"><td>${lk(ce.oi)}</td><td class="${ce.doi>0?'pos':ce.doi<0?'neg':''}">${sg(ce.doi)}</td><td>${lk(ce.vol)}</td><td>${ce.iv==null?'-':ce.iv.toFixed(1)}</td><td><b>${f2(ce.ltp)}</b></td>
+      <td class="strk"><b>${f0(r.strike)}</b></td>
+      <td><b>${f2(pe.ltp)}</b></td><td>${pe.iv==null?'-':pe.iv.toFixed(1)}</td><td>${lk(pe.vol)}</td><td class="${pe.doi>0?'pos':pe.doi<0?'neg':''}">${sg(pe.doi)}</td><td>${lk(pe.oi)}</td></tr>`}).join('');
+  return `<div class="card"><h2>Option chain · ${c.ch.expiry}</h2><div class="wrap"><table>
+    <thead><tr><th colspan="5" style="text-align:center;color:${COL.ce}">CALLS</th><th></th><th colspan="5" style="text-align:center;color:${COL.pe}">PUTS</th></tr>
+    <tr><th>OI</th><th>OI chg</th><th>Volume</th><th>IV %</th><th>LTP</th><th>Strike</th><th>LTP</th><th>IV %</th><th>Volume</th><th>OI chg</th><th>OI</th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`;
+}
+function bu(ltp,pc,doi){
+  if(ltp==null||pc==null||doi==null||!pc) return '<span class="mut">-</span>';
+  const up=ltp>pc, oiUp=doi>0;
+  return up&&oiUp?'<span class="pos">Long buildup</span>':!up&&oiUp?'<span class="neg">Short buildup</span>':up&&!oiUp?'<span class="pos">Short covering</span>':'<span class="neg">Long unwinding</span>';
+}
+function viewBuildup(c,A){
+  const rows=A.rows.map(r=>{const ce=r.ce||{},pe=r.pe||{};
+    return `<tr class="${r.strike===A.atm.strike?'now':''}"><td class="l">${bu(ce.ltp,ce.pc,ce.doi)}</td><td>${f2(ce.ltp)}</td><td class="${ce.ltp>ce.pc?'pos':'neg'}">${ce.pc?((ce.ltp/ce.pc-1)*100).toFixed(1)+'%':'-'}</td><td>${sg(ce.doi)}</td>
+      <td class="strk"><b>${f0(r.strike)}</b></td>
+      <td>${sg(pe.doi)}</td><td class="${pe.ltp>pe.pc?'pos':'neg'}">${pe.pc?((pe.ltp/pe.pc-1)*100).toFixed(1)+'%':'-'}</td><td>${f2(pe.ltp)}</td><td class="l">${bu(pe.ltp,pe.pc,pe.doi)}</td></tr>`}).join('');
+  return `<div class="card"><h2>Buildup per contract</h2><div class="wrap"><table>
+    <thead><tr><th class="l">Call buildup</th><th>LTP</th><th>Price %</th><th>OI chg</th><th>Strike</th><th>OI chg</th><th>Price %</th><th>LTP</th><th class="l">Put buildup</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Price % is versus the previous close of that option; OI change is versus the previous close OI. Read each contract on its own.</p></div>`;
+}
+function viewScope(c,A){
+  const row=SC.find(x=>x.symbol===c.ix.name);
+  if(!row) return '<div class="card"><h2>Scope levels</h2><p class="mut">Scope levels for this index are not available yet.</p></div>';
+  const near=(v)=>{const r=A.s.all.reduce((b,x)=>Math.abs(x.strike-v)<Math.abs((b?b.strike:1e18)-v)?x:b,null); return r};
+  const lines=[]; ['day','w52'].forEach(m=>{const l=row[m]; if(!l) return;
+    [['VLOW',l.vlow],['Magnet',l.point],['VHIGH',l.vhigh]].forEach(([n,v])=>{ if(v==null) return; const r=near(v);
+      const hit=(r===A.mc||r===A.mp)&&Math.abs(r.strike/v-1)<0.004;
+      lines.push(`<tr><td class="l">${m==='day'?'Today':'52 Week'}</td><td class="l"><b>${n}</b></td><td>${f2(v)}</td><td>${f0(r.strike)}</td><td>${lk(r.ce&&r.ce.oi)}</td><td>${lk(r.pe&&r.pe.oi)}</td><td class="l">${hit?'<span class="tag s2">'+(r===A.mc?'Highest Call OI strike':'Highest Put OI strike')+'</span>':''}</td></tr>`)})});
+  return `<div class="card"><h2>Scope levels vs option-chain strikes</h2><div class="wrap"><table><thead><tr><th class="l">Levels</th><th class="l">Scope level</th><th>Price</th><th>Nearest strike</th><th>Call OI</th><th>Put OI</th><th class="l">Overlap</th></tr></thead><tbody>${lines.join('')||'<tr><td colspan="7" class="empty">No levels</td></tr>'}</tbody></table></div>
+    <p class="note">“Overlap” = the Scope level is within 0.4% of the strike with the highest Call or Put OI (among the strikes shown).</p></div>`;
+}
+
+function render(){
+  VIEW=$('sel_view').value;
+  document.querySelectorAll('[data-help]').forEach(e=>e.hidden=e.dataset.help!==VIEW);
+  const c=cur();
+  if(!c){ $('out').innerHTML='<div class="card empty">Option chain data appears after the first Options job run (GitHub Actions → Scope Options → Run workflow).</div>'; return }
+  const A=analyse(c); if(!A.rows.length||!A.mc||!A.mp){ $('out').innerHTML='<div class="card empty">No strikes to show.</div>'; return }
+  const fn={summary:viewSummary,oi:viewOI,doi:viewDOI,iv:viewIV,chain:viewChain,buildup:viewBuildup,scope:viewScope}[VIEW];
+  $('out').innerHTML=fn(c,A);
+  const b=$('cpy'); if(b) b.onclick=()=>{const t=$('cpyt').textContent; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied'),()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Copied')})};
+  if(window.ownerReading) window.ownerReading(c,A);
+}
+function fillExp(){
+  const ix=OPT.indices[$('sel_idx').value]; $('sel_exp').innerHTML=ix?ix.expiries.map(e=>`<option>${e}</option>`).join(''):'';
+}
+$('sel_idx').onchange=()=>{fillExp();render()};
+['sel_exp','sel_view','sel_rng'].forEach(i=>$(i).onchange=render);
+try{ const v=localStorage.getItem('opt_view'); if(v) $('sel_view').value=v; $('sel_view').addEventListener('change',()=>localStorage.setItem('opt_view',$('sel_view').value)) }catch(e){}
+
+Promise.all([fetch('/api/options').then(r=>r.json()), fetch('/api/stocks').then(r=>r.json()).catch(()=>({}))]).then(([o,s])=>{
+  OPT=o; SC=(s&&s.indices)||[];
+  $('upd').textContent=o.updated?'snapshot '+o.updated:'no data yet';
+  const names=Object.keys(o.indices||{}); $('sel_idx').innerHTML=names.map(n=>`<option>${n}</option>`).join('');
+  fillExp(); render();
+});
+</script>
+{% endraw %}
+{% if is_admin %}
+<script>
+/* owner only: "today's reading" sentences */
+window.ownerReading=function(c,A){
+  const box=document.getElementById('today'); if(!box) return;
+  const L=[], f0=n=>Number(n).toLocaleString('en-IN',{maximumFractionDigits:0});
+  if(A.pcr!=null) L.push('PCR '+A.pcr.toFixed(2)+': '+(A.pcr>1.2?'put OI vadhu, put writers ni position bhari (mood thodo supportive).':A.pcr<0.8?'call OI vadhu, call writers ni position bhari (upar ma dabaan).':'call ane put lagbhag santulit.'));
+  L.push('Spot '+f0(A.spot)+', highest Put OI strike '+f0(A.mp.strike)+' ('+f0(A.spot-A.mp.strike)+' pts niche) ane highest Call OI strike '+f0(A.mc.strike)+' ('+f0(A.mc.strike-A.spot)+' pts upar). OI range '+f0(A.mp.strike)+' thi '+f0(A.mc.strike)+'.');
+  L.push('Max pain '+f0(A.mpain)+' ('+(A.mpain>A.spot?f0(A.mpain-A.spot)+' pts upar':f0(A.spot-A.mpain)+' pts niche')+').');
+  L.push('ATM straddle '+f0(A.straddle)+' pts (~'+A.movePct.toFixed(2)+'%): expiry sudhi ± aatlo move apekshit.');
+  if(A.skew!=null) L.push('Put − Call IV (2% OTM) '+(A.skew>=0?'+':'')+A.skew.toFixed(1)+': '+(A.skew>1.5?'niche ni suraksha mehngi (put skew).':A.skew<-1.5?'upar na calls mehnga.':'skew nano.'));
+  if(c.ch.days<1.2) L.push('Expiry nazdik chhe: OI ane premium jaldi badlay, theta ghanu.');
+  box.innerHTML='<b>Aaj nu reading</b> <span class="mut">(sanket, salah nathi)</span><ul style="margin:6px 0 0 18px">'+L.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
+  box.style.display='block';
+};
+</script>
+{% endif %}
+{% endblock %}
