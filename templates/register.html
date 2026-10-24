@@ -2,9 +2,11 @@
 {% block header %}{% endblock %}
 {% block body %}
 <div class="card reg" style="max-width:560px">
-  <div class="hero" style="text-align:center">
-    <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="" style="width:72px;height:72px">
-    <h1 style="margin:6px 0 0">Create your Scope account</h1>
+  <div class="hero">
+    <img class="logo-img" src="{{ url_for('static', filename='logo.svg') }}" alt="Scope logo" style="width:88px;height:88px">
+    <span class="wm"><b class="wordmark" style="font-size:64px">Scope</b><i class="flo"></i></span>
+    <span class="typer" data-text="precision . vision . success ." style="font-size:9.5px;letter-spacing:.12em;margin:8px auto 0;width:max-content">precision . vision . success .</span>
+    <h1 style="margin:16px 0 0;font-size:20px">Create your account</h1>
     <p class="mut" style="margin:4px 0 0">Email OTP login · one device at a time</p>
   </div>
   {% if err %}<p class="neg" style="margin:12px 0 0;text-align:center"><b>{{ err }}</b></p>{% endif %}
