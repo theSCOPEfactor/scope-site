@@ -387,6 +387,41 @@ def api_options():
     return jsonify(get_options())
 
 
+@app.route("/tg/<secret>", methods=["POST"])
+def tg_hook(secret):
+    """Telegram bot webhook: 'NIFTY low high poc' -> option chain zones reply. Fakt owner na chat ne j jawab."""
+    import hmac
+    from flask import abort
+    want = os.environ.get("TG_SECRET", "")
+    tok = os.environ.get("TG_BOT_TOKEN", "")
+    if not want or not tok or not hmac.compare_digest(secret, want):
+        abort(404)
+    if not hmac.compare_digest(request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), want):
+        abort(404)
+    try:
+        m = (request.get_json(silent=True) or {}).get("message") or {}
+        chat = str((m.get("chat") or {}).get("id") or "")
+        text = m.get("text") or ""
+        if chat:
+            owner = os.environ.get("TG_CHAT_ID", "").strip()
+            if not owner:
+                out = f"Tamaro chat id: {chat}\nAa number PythonAnywhere ni WSGI file ma TG_CHAT_ID tarike mukine Reload karo."
+            elif chat != owner:
+                out = None
+            elif text.strip().lower() in ("/start", "start", "help", "/help"):
+                from zones import HELP
+                out = HELP
+            else:
+                from zones import reply_for
+                out = reply_for(text, get_options())
+            if out:
+                requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
+                              data={"chat_id": chat, "text": out}, timeout=20)
+    except Exception as e:
+        print("tg_hook error:", e)
+    return "ok"
+
+
 @app.route("/options")
 def options_page():
     return render_template("options.html", active="options", updated=get_data()["updated"])
