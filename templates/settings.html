@@ -26,10 +26,18 @@
 
 <div class="card">
   <h2>Menu</h2>
-  <div class="seg" id="s_nav">
-    <button data-v="full">Full names</button><button data-v="mini">Icons only</button><button data-v="auto" id="s_auto">Auto-hide</button>
+  <div class="tiles" id="s_nav">
+    <button data-v="full"><i class="mp full"><i></i></i><span>Full names</span><small>Side menu with every name</small></button>
+    <button data-v="mini"><i class="mp mini"><i></i></i><span>Icons only</span><small>Name shows when you point at an icon</small></button>
+    <button data-v="auto" id="s_auto"><i class="mp auto"><i></i></i><span>Auto-hide</span><small>Slides out from the left edge</small></button>
+    <button data-v="dockb"><i class="mp dockb"><i></i></i><span>Dock · bottom</span><small>Icons at the bottom, like a Mac</small></button>
+    <button data-v="dockt"><i class="mp dockt"><i></i></i><span>Dock · top</span><small>Icons at the top, like Linux panels</small></button>
   </div>
-  <p class="note" style="margin-top:10px"><b>Full names</b> keeps the menu open with every name. <b>Icons only</b> shows small icons and the name when you point at one. <b>Auto-hide</b> hides the menu completely; move the mouse to the left edge of the screen and it slides out. On a phone the menu is always the ☰ button.</p>
+  <div class="srow" style="margin-top:14px"><div><b>Dock icon zoom</b><small>Icons grow when you move the mouse over them (Dock only)</small></div>
+    <div class="seg" id="s_dockmag"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+  <div class="srow"><div><b>Hide the dock</b><small>The dock slides away; touch the bottom (or top) edge of the screen to bring it back</small></div>
+    <div class="seg" id="s_dockhide"><button data-v="0">Always visible</button><button data-v="1">Auto-hide</button></div></div>
+  <p class="note" style="margin-top:6px">On a phone the menu is always the ☰ button, whatever you choose here. Quick tip: press <b>Ctrl + K</b> (Mac: <b>⌘ K</b>) or <b>/</b> on any page to jump to a page or a stock by typing its name.</p>
 </div>
 
 <div class="card">
@@ -73,6 +81,13 @@
 .pv b{display:block;height:11px;border-radius:5px;background:var(--pc)}
 .pv b+b{width:60%;background:var(--pt);opacity:.55}
 .skins .sw{display:block;width:100%;height:46px;border-radius:10px;background:linear-gradient(135deg,var(--s1),var(--s2))}
+.mp{display:block;position:relative;width:100%;height:58px;border-radius:9px;background:rgba(128,140,170,.16);border:1px solid rgba(128,140,170,.35);overflow:hidden}
+.mp>i{position:absolute;background:rgba(128,140,170,.65);border-radius:4px}
+.mp.full>i{left:0;top:0;bottom:0;width:34%;border-radius:0}
+.mp.mini>i{left:0;top:0;bottom:0;width:11%;border-radius:0}
+.mp.auto>i{left:0;top:20%;bottom:20%;width:5%;border-radius:0 4px 4px 0;opacity:.8}
+.mp.dockb>i{left:18%;right:18%;bottom:6px;height:13px;border-radius:8px}
+.mp.dockt>i{left:18%;right:18%;top:6px;height:13px;border-radius:8px}
 .srow{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--stroke)}
 .srow:first-of-type{border-top:0;padding-top:0}
 .srow>div:first-child{max-width:430px}.srow b{display:block}.srow small{display:block;color:var(--mut);margin-top:2px}
@@ -82,7 +97,7 @@
 <script>
 (function(){
   var $=function(i){return document.getElementById(i)};
-  var map={s_mode:'mode',s_skin:'skin',s_nav:'nav',s_fs:'fs',s_dense:'dense',s_fx:'fx',s_cb:'cb'};
+  var map={s_mode:'mode',s_skin:'skin',s_nav:'nav',s_fs:'fs',s_dense:'dense',s_fx:'fx',s_cb:'cb',s_dockmag:'dockmag',s_dockhide:'dockhide'};
   function paint(){
     var p=ScopePrefs.get();
     Object.keys(map).forEach(function(id){

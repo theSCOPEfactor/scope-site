@@ -422,3 +422,53 @@ html[data-mode=light] .brand .typer{color:var(--typer)}
 }
 @media(max-width:860px){.menu.tools #autotog{display:none}}
 @media(prefers-reduced-motion:reduce){html[data-nav=auto] .side{transition:none}}
+
+/* ===== dock menu (Mac / Linux style), quick jump ===== */
+.navtip.up{transform:translate(-50%,calc(-100% + 6px))}.navtip.up.on{transform:translate(-50%,-100%)}
+.navtip.down{transform:translate(-50%,-6px)}.navtip.down.on{transform:translate(-50%,0)}
+@media(min-width:861px){
+  html[data-nav=dockb] .side,html[data-nav=dockt] .side{left:50%;right:auto;top:auto;bottom:auto;width:max-content;max-width:calc(100vw - 28px);
+    flex-direction:row;align-items:center;gap:6px;padding:8px 12px;border-radius:24px;overflow:visible;
+    border:1px solid var(--stroke);transform:translateX(-50%);box-shadow:0 18px 50px var(--shadow),inset 0 1px 0 var(--hl);transition:transform .25s}
+  html[data-nav=dockb] .side{bottom:12px}
+  html[data-nav=dockt] .side{top:12px}
+  html[data-nav^=dock] .side .bt,html[data-nav^=dock] #data-badge,html[data-nav^=dock] .menu a span,html[data-nav^=dock] #navtog,html[data-nav^=dock] #autotog{display:none}
+  html[data-nav^=dock] .side .brand{padding:0 4px 0 0;flex:none;transform-origin:50% 100%}
+  html[data-nav^=dock] .side .logo-img{width:38px;height:38px}
+  html[data-nav^=dock] .menu{flex-direction:row;align-items:center;gap:4px}
+  html[data-nav^=dock] .menu a{flex:none;padding:9px;border-radius:14px;transform-origin:50% 100%;transition:background .2s}
+  html[data-nav=dockt] .menu a,html[data-nav=dockt] .side .brand{transform-origin:50% 0}
+  html[data-nav^=dock] .menu a:hover{transform:none;background:var(--glass-h)}
+  html[data-nav^=dock] .menu a.on::before{content:"";position:absolute;left:50%;bottom:2px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--gold)}
+  html[data-nav=dockt] .menu a.on::before{bottom:auto;top:2px}
+  html[data-nav^=dock] .menu small{display:block;width:1px;height:26px;padding:0;margin:0 6px;background:var(--stroke);font-size:0;overflow:hidden;flex:none}
+  html[data-nav^=dock] .menu small:first-child{display:none}
+  html[data-nav^=dock] .menu.tools{border-top:0;border-left:1px solid var(--stroke);padding:0 0 0 8px;margin:0 0 0 2px}
+  html[data-nav^=dock] .side~main,html[data-nav^=dock] .side~footer{margin-left:auto;margin-right:auto}
+  html[data-nav=dockb] .side~main{padding-bottom:30px}
+  html[data-nav=dockb] .side~footer{padding-bottom:104px}
+  html[data-nav=dockt] .side~main{padding-top:96px}
+  html[data-nav=dockt] .side~footer{padding-bottom:30px}
+  /* dock auto-hide */
+  html[data-nav=dockb][data-dockhide="1"] .side{transform:translate(-50%,calc(100% + 24px))}
+  html[data-nav=dockt][data-dockhide="1"] .side{transform:translate(-50%,calc(-100% - 24px))}
+  html[data-nav^=dock][data-dockhide="1"] body.peek .side{transform:translateX(-50%)}
+  html[data-nav^=dock][data-dockhide="1"] .edge{display:block;position:fixed;left:22%;right:22%;height:14px;z-index:39}
+  html[data-nav=dockb][data-dockhide="1"] .edge{bottom:0}
+  html[data-nav=dockt][data-dockhide="1"] .edge{top:0}
+  html[data-nav=dockb][data-dockhide="1"] .side~footer{padding-bottom:30px}
+  html[data-nav=dockt][data-dockhide="1"] .side~main{padding-top:30px}
+}
+@media(max-width:860px){.menu.tools #docktog{display:none}}
+.qj{position:fixed;inset:0;z-index:100;display:none;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(2,5,14,.55);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.qj.on{display:flex}
+.qj .box{width:min(560px,92vw);background:var(--solid);border:1px solid var(--stroke);border-radius:18px;box-shadow:0 24px 70px var(--shadow);overflow:hidden;
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.qj input{width:100%;padding:16px 18px;background:none;border:0;border-bottom:1px solid var(--stroke);color:var(--tx);font:inherit;font-size:16px;outline:none}
+.qj ul{list-style:none;margin:0;padding:6px;max-height:50vh;overflow:auto}
+.qj li{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--tx)}
+.qj li.on{background:linear-gradient(135deg,rgba(var(--acc-rgb),.28),rgba(var(--vio-rgb),.22))}
+.qj li em{font-style:normal;color:var(--mut);font-size:12px}
+.qj li.none{color:var(--mut);cursor:default}
+.qj .qh{padding:8px 14px;border-top:1px solid var(--stroke);color:var(--mut);font-size:12px}

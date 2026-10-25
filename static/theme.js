@@ -1,7 +1,7 @@
 /* Scope: look & feel settings (saved on this device) + sidebar tools + app install */
 (function () {
   var KEY = 'scope_prefs';
-  var D = { mode: 'dark', skin: 'ocean', nav: 'full', fs: 'md', dense: '0', fx: 'full', cb: '0' };
+  var D = { mode: 'dark', skin: 'ocean', nav: 'full', fs: 'md', dense: '0', fx: 'full', cb: '0', dockhide: '0', dockmag: '1' };
   var BAR = { dark: '#050914', xdark: '#000000', light: '#eef2fa' };
   var MODE_NAME = { dark: 'Dark', xdark: 'Extra dark', light: 'Light', auto: 'Auto' };
   var ORDER = ['dark', 'xdark', 'light', 'auto'];
@@ -27,10 +27,21 @@
     h.setAttribute('data-dense', p.dense);
     h.setAttribute('data-fx', p.fx);
     h.setAttribute('data-cb', p.cb);
+    h.setAttribute('data-dockhide', p.dockhide);
+    h.setAttribute('data-dockmag', p.dockmag);
+    try { var sd = document.getElementById('side'); if (sd) clearMag(sd); } catch (e) {}
     var t = document.querySelector('meta[name=theme-color]');
     if (t) t.setAttribute('content', BAR[m] || BAR.dark);
   }
   function save(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) {} }
+
+  function clearMag(side) {
+    [].forEach.call(side.querySelectorAll('.menu a, .brand'), function (a) { a.style.transform = ''; });
+  }
+  function isDock() {
+    var n = document.documentElement.getAttribute('data-nav');
+    return (n === 'dockb' || n === 'dockt') && window.innerWidth > 860;
+  }
 
   var P = read();
   apply(P);
@@ -81,7 +92,13 @@
   function setTip(el, t) { if (el) el.setAttribute('data-tip', t); }
   function sync() {
     var p = read(), b = document.body; if (!b) return;
-    var nt = $('navtog'), at = $('autotog'), tt = $('themetog');
+    var nt = $('navtog'), at = $('autotog'), tt = $('themetog'), dt = $('docktog');
+    if (dt) {
+      var onDock = p.nav === 'dockb' || p.nav === 'dockt';
+      $('docktog-l').textContent = onDock ? 'Side menu' : 'Dock menu';
+      setTip(dt, onDock ? 'Back to the side menu' : 'Dock menu (icons like Mac / Linux)');
+      dt.classList.toggle('on', onDock);
+    }
     if (nt) {
       $('navtog-l').textContent = p.nav === 'full' ? 'Collapse to icons' : 'Show full names';
       setTip(nt, p.nav === 'full' ? 'Collapse to icons' : 'Show full names');
@@ -101,7 +118,12 @@
   function wire() {
     var b = document.body;
     sync();
-    var nt = $('navtog'), at = $('autotog'), tt = $('themetog');
+    var nt = $('navtog'), at = $('autotog'), tt = $('themetog'), dt = $('docktog'), qj = $('qjtog');
+    if (dt) dt.onclick = function (e) {
+      e.preventDefault(); var n = read().nav;
+      ScopePrefs.set('nav', (n === 'dockb' || n === 'dockt') ? 'full' : 'dockb');
+    };
+    if (qj) qj.onclick = function (e) { e.preventDefault(); quick(true); };
     if (nt) nt.onclick = function (e) { e.preventDefault(); ScopePrefs.set('nav', read().nav === 'full' ? 'mini' : 'full'); };
     if (at) at.onclick = function (e) { e.preventDefault(); ScopePrefs.set('nav', read().nav === 'auto' ? 'full' : 'auto'); };
     if (tt) tt.onclick = function (e) {
@@ -119,20 +141,44 @@
       edge.addEventListener('mouseenter', open); edge.addEventListener('mouseleave', shut);
       side.addEventListener('mouseenter', open); side.addEventListener('mouseleave', shut);
     }
-    /* icon-only menu: floating name label */
+    /* icon-only menu / dock: floating name label + dock magnification */
     if (side) {
       var tip = document.createElement('div'); tip.className = 'navtip'; b.appendChild(tip);
       var hide = function () { tip.classList.remove('on'); };
+      var place = function (a) {
+        var nav = document.documentElement.getAttribute('data-nav'), r = a.getBoundingClientRect();
+        tip.textContent = a.getAttribute('data-tip');
+        if (nav === 'dockb' || nav === 'dockt') {
+          tip.className = 'navtip ' + (nav === 'dockb' ? 'up' : 'down');
+          tip.style.left = (r.left + r.width / 2) + 'px';
+          tip.style.top = (nav === 'dockb' ? r.top - 12 : r.bottom + 12) + 'px';
+        } else {
+          tip.className = 'navtip';
+          tip.style.left = (r.right + 12) + 'px'; tip.style.top = (r.top + r.height / 2) + 'px';
+        }
+        tip.classList.add('on');
+      };
       side.addEventListener('mouseover', function (e) {
-        if (document.documentElement.getAttribute('data-nav') !== 'mini' || window.innerWidth <= 860) return;
+        var nav = document.documentElement.getAttribute('data-nav');
+        if (window.innerWidth <= 860 || !(nav === 'mini' || nav === 'dockb' || nav === 'dockt')) return;
         var a = e.target.closest ? e.target.closest('.menu a, .brand') : null;
         if (!a || !a.getAttribute('data-tip')) { hide(); return; }
-        var r = a.getBoundingClientRect();
-        tip.textContent = a.getAttribute('data-tip');
-        tip.style.left = (r.right + 12) + 'px'; tip.style.top = (r.top + r.height / 2) + 'px';
-        tip.classList.add('on');
+        place(a);
       });
-      side.addEventListener('mouseleave', hide);
+      side.addEventListener('mousemove', function (e) {
+        if (!isDock()) return;
+        var top = document.documentElement.getAttribute('data-nav') === 'dockt';
+        var mag = read().dockmag === '1' && side.scrollWidth <= side.clientWidth + 2;
+        var mx = e.clientX - side.getBoundingClientRect().left;
+        [].forEach.call(side.querySelectorAll('.menu a, .brand'), function (a) {
+          if (!mag) { a.style.transform = ''; return; }
+          var c = a.offsetLeft + a.offsetWidth / 2, d = Math.abs(mx - c);
+          var k = Math.max(0, 1 - d / 130), sc = 1 + 0.62 * k * k;
+          a.style.transformOrigin = top ? '50% 0' : '50% 100%';
+          a.style.transform = sc > 1.01 ? 'scale(' + sc.toFixed(3) + ')' : '';
+        });
+      });
+      side.addEventListener('mouseleave', function () { hide(); clearMag(side); });
       side.addEventListener('scroll', hide);
     }
     /* phone drawer */
@@ -141,5 +187,73 @@
     if (burger) burger.onclick = function () { drawer(!b.classList.contains('drawer')); };
     if (scrim) scrim.onclick = function () { drawer(false); };
   }
+
+  /* ---------- quick jump (Ctrl/Cmd + K, or "/") ---------- */
+  var QJ = null, STOCKS = null, qsel = 0, qitems = [];
+  function loadStocks() {
+    if (STOCKS !== null) return; STOCKS = [];
+    fetch('/api/stocks', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      STOCKS = (d && d.stocks) || [];
+      if (QJ && QJ.classList.contains('on')) qrender();
+    }).catch(function () {});
+  }
+  function pages() {
+    var out = [];
+    [].forEach.call(document.querySelectorAll('#side .menu a[href]'), function (a) {
+      var h = a.getAttribute('href');
+      if (!h || h === '#' || /logout|backup/.test(h)) return;
+      var t = a.getAttribute('data-tip') || a.textContent.trim();
+      out.push({ t: t, h: h, k: 'Page' });
+    });
+    out.push({ t: 'Terms & Privacy', h: '/terms', k: 'Page' });
+    return out;
+  }
+  function qrender() {
+    var q = QJ.querySelector('input').value.trim().toLowerCase(), ul = QJ.querySelector('ul');
+    var res = pages().filter(function (x) { return !q || x.t.toLowerCase().indexOf(q) > -1; });
+    if (q && STOCKS && STOCKS.length) {
+      var n = 0;
+      for (var i = 0; i < STOCKS.length && n < 8; i++) {
+        var s = STOCKS[i], sym = String(s.symbol || ''), nm = String(s.name || '');
+        if (sym.toLowerCase().indexOf(q) === 0 || sym.toLowerCase().indexOf(q) > -1 || nm.toLowerCase().indexOf(q) > -1) {
+          res.push({ t: sym + (nm ? ' · ' + nm : ''), h: '/stock/' + encodeURIComponent(sym), k: 'Stock' }); n++;
+        }
+      }
+    }
+    qitems = res.slice(0, 14); if (qsel >= qitems.length) qsel = 0;
+    ul.innerHTML = qitems.length ? qitems.map(function (x, i) {
+      return '<li data-i="' + i + '" class="' + (i === qsel ? 'on' : '') + '"><span>' + x.t.replace(/[&<>]/g, '') + '</span><em>' + x.k + '</em></li>';
+    }).join('') : '<li class="none">Nothing found</li>';
+  }
+  function quick(open) {
+    if (!document.getElementById('side')) return;
+    if (!QJ) {
+      QJ = document.createElement('div'); QJ.className = 'qj';
+      QJ.innerHTML = '<div class="box"><input type="text" placeholder="Jump to a page or search a stock..." autocomplete="off" spellcheck="false">' +
+        '<ul></ul><div class="qh">↑ ↓ to move · Enter to open · Esc to close</div></div>';
+      document.body.appendChild(QJ);
+      QJ.addEventListener('mousedown', function (e) {
+        var li = e.target.closest('li[data-i]');
+        if (li) { location.href = qitems[+li.dataset.i].h; } else if (e.target === QJ) { quick(false); }
+      });
+      QJ.querySelector('input').addEventListener('input', function () { qsel = 0; qrender(); });
+      QJ.querySelector('input').addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { qsel = (qsel + 1) % Math.max(1, qitems.length); qrender(); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { qsel = (qsel - 1 + qitems.length) % Math.max(1, qitems.length); qrender(); e.preventDefault(); }
+        else if (e.key === 'Enter') { if (qitems[qsel]) location.href = qitems[qsel].h; }
+        else if (e.key === 'Escape') { quick(false); }
+      });
+    }
+    if (open) { QJ.classList.add('on'); qsel = 0; var i = QJ.querySelector('input'); i.value = ''; qrender(); loadStocks(); setTimeout(function () { i.focus(); }, 30); }
+    else QJ.classList.remove('on');
+  }
+  document.addEventListener('keydown', function (e) {
+    var tg = e.target, typing = tg && (/^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName) || tg.isContentEditable);
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); quick(!(QJ && QJ.classList.contains('on'))); }
+    else if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); quick(true); }
+    else if (e.key === 'Escape' && QJ && QJ.classList.contains('on')) quick(false);
+  });
+  window.addEventListener('resize', function () { var sd = document.getElementById('side'); if (sd) clearMag(sd); });
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 })();
