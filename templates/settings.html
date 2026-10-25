@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="pagehead"><div><h1>Settings</h1><p class="sub">Make Scope look and work the way you like. Changes apply at once and are saved on this device.</p></div></div>
+
+<div class="card">
+  <h2>Mode</h2>
+  <div class="tiles" id="s_mode">
+    <button data-v="dark"  style="--pb:#050914;--pc:rgba(255,255,255,.10);--pt:#eaf0ff"><i class="pv"><b></b><b></b></i><span>Dark</span></button>
+    <button data-v="xdark" style="--pb:#000;--pc:rgba(255,255,255,.07);--pt:#eaf0ff"><i class="pv"><b></b><b></b></i><span>Extra dark</span><small>Pure black, saves battery on OLED</small></button>
+    <button data-v="light" style="--pb:#eef2fa;--pc:#fff;--pt:#0f172a"><i class="pv"><b></b><b></b></i><span>Light</span></button>
+    <button data-v="auto"  style="--pb:linear-gradient(90deg,#050914 50%,#eef2fa 50%);--pc:rgba(128,140,170,.35);--pt:#8a94ad"><i class="pv"><b></b><b></b></i><span>Auto</span><small>Follows your phone / computer</small></button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Skin (colour theme)</h2>
+  <div class="tiles skins" id="s_skin">
+    <button data-v="ocean"  style="--s1:#3b82f6;--s2:#7c5cf0"><i class="sw"></i><span>Ocean</span></button>
+    <button data-v="aurora" style="--s1:#10b981;--s2:#0ea5e9"><i class="sw"></i><span>Aurora</span></button>
+    <button data-v="sunset" style="--s1:#f97316;--s2:#ec4899"><i class="sw"></i><span>Sunset</span></button>
+    <button data-v="royal"  style="--s1:#8b5cf6;--s2:#d946ef"><i class="sw"></i><span>Royal</span></button>
+    <button data-v="forest" style="--s1:#16a34a;--s2:#65a30d"><i class="sw"></i><span>Forest</span></button>
+    <button data-v="mono"   style="--s1:#94a3b8;--s2:#475569"><i class="sw"></i><span>Graphite</span></button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Menu</h2>
+  <div class="seg" id="s_nav">
+    <button data-v="full">Full names</button><button data-v="mini">Icons only</button><button data-v="auto" id="s_auto">Auto-hide</button>
+  </div>
+  <p class="note" style="margin-top:10px"><b>Full names</b> keeps the menu open with every name. <b>Icons only</b> shows small icons and the name when you point at one. <b>Auto-hide</b> hides the menu completely; move the mouse to the left edge of the screen and it slides out. On a phone the menu is always the ☰ button.</p>
+</div>
+
+<div class="card">
+  <h2>Display</h2>
+  <div class="srow"><div><b>Text size</b><small>Makes everything a little smaller or bigger</small></div>
+    <div class="seg" id="s_fs"><button data-v="sm">Small</button><button data-v="md">Normal</button><button data-v="lg">Large</button></div></div>
+  <div class="srow"><div><b>Table rows</b><small>Compact fits more rows on the screen</small></div>
+    <div class="seg" id="s_dense"><button data-v="0">Comfortable</button><button data-v="1">Compact</button></div></div>
+  <div class="srow"><div><b>Background effects</b><small>Calm stops the moving glow. Light turns off blur and glow (fastest, best for older phones)</small></div>
+    <div class="seg" id="s_fx"><button data-v="full">Full</button><button data-v="calm">Calm</button><button data-v="lite">Light</button></div></div>
+  <div class="srow"><div><b>Colour-blind friendly colours</b><small>Blue for gains and orange for losses instead of green and red</small></div>
+    <div class="seg" id="s_cb"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+</div>
+
+<div class="card">
+  <h2>Use Scope as an app</h2>
+  <p class="mut" id="a_state" style="margin:0 0 10px">Install Scope on your phone or computer. It opens in its own window with no browser bars and gets its own icon.</p>
+  <div class="row"><button class="btn primary" id="a_btn" hidden>⬇ Install Scope app</button></div>
+  <ul class="note" style="margin:12px 0 0;padding-left:18px;line-height:1.7">
+    <li><b>Computer (Chrome / Edge):</b> click the install icon at the right end of the address bar, or menu → "Install Scope".</li>
+    <li><b>Android (Chrome):</b> menu ⋮ → "Install app" / "Add to Home screen".</li>
+    <li><b>iPhone / iPad (Safari):</b> Share button → "Add to Home Screen".</li>
+  </ul>
+  <p class="note">Your levels and journal always load live, so the app needs the internet. Only the look of the app is kept offline.</p>
+</div>
+
+<div class="card row" style="justify-content:space-between">
+  <span class="mut">Settings are saved in this browser / app only. Your phone and computer can have different looks.</span>
+  <button class="btn danger" id="s_reset">Reset to default</button>
+</div>
+
+<style>
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tiles button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:10px;border-radius:14px;cursor:pointer;
+  background:var(--glass);border:1.5px solid var(--stroke);color:var(--tx);font:inherit;transition:transform .2s,border-color .2s,box-shadow .2s}
+.tiles button:hover{transform:translateY(-2px);border-color:var(--acc)}
+.tiles button.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(var(--acc-rgb),.35)}
+.tiles button span{font-weight:600}
+.tiles button small{color:var(--mut);font-size:11px;line-height:1.3}
+.pv{display:flex;flex-direction:column;gap:5px;justify-content:center;width:100%;height:62px;border-radius:9px;padding:9px;background:var(--pb);border:1px solid rgba(128,140,170,.35)}
+.pv b{display:block;height:11px;border-radius:5px;background:var(--pc)}
+.pv b+b{width:60%;background:var(--pt);opacity:.55}
+.skins .sw{display:block;width:100%;height:46px;border-radius:10px;background:linear-gradient(135deg,var(--s1),var(--s2))}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--stroke)}
+.srow:first-of-type{border-top:0;padding-top:0}
+.srow>div:first-child{max-width:430px}.srow b{display:block}.srow small{display:block;color:var(--mut);margin-top:2px}
+</style>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var map={s_mode:'mode',s_skin:'skin',s_nav:'nav',s_fs:'fs',s_dense:'dense',s_fx:'fx',s_cb:'cb'};
+  function paint(){
+    var p=ScopePrefs.get();
+    Object.keys(map).forEach(function(id){
+      var el=$(id); if(!el) return;
+      [].forEach.call(el.children,function(b){b.classList.toggle('on',b.dataset.v===p[map[id]])});
+    });
+  }
+  Object.keys(map).forEach(function(id){
+    $(id).addEventListener('click',function(e){
+      var b=e.target.closest('button'); if(!b) return; ScopePrefs.set(map[id],b.dataset.v); paint();
+    });
+  });
+  document.addEventListener('scopeprefs',paint);
+  if(matchMedia('(max-width:860px)').matches) $('s_auto').title='Works on computers; on a phone the ☰ button is used';
+  $('s_reset').onclick=function(){ if(confirm('Reset all settings to default?')){ScopePrefs.reset();paint();} };
+  paint();
+
+  /* install */
+  function st(){
+    var standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+    if(standalone){$('a_state').textContent='You are using Scope as an app.';$('a_btn').hidden=true;return}
+    $('a_btn').hidden=!window.__pwa;
+  }
+  $('a_btn').onclick=function(){ScopeInstall().then(st)};
+  document.addEventListener('pwaready',st); st();
+})();
+</script>
+{% endblock %}
