@@ -24,9 +24,9 @@ MONTHS = (1, 3, 6, 12)
 DEFAULT_PRICE_PER_MONTH = 5000     # fakat shuruat nu; admin page ma badlay
 
 # aa pages login vagar pan khulla che
-PUBLIC = {"login", "logout", "register", "verify", "resend_otp", "static", "tg_hook", "tg_cron", "terms"}
+PUBLIC = {"login", "logout", "register", "verify", "resend_otp", "static", "tg_hook", "tg_cron", "terms", "manifest", "service_worker", "offline_page"}
 # plan puru thayo hoy tyare pan aa pages chalse (profile, payment, help)
-EXPIRED_OK = {"profile", "pay", "help_page", "logout", "support", "support_new"}
+EXPIRED_OK = {"profile", "pay", "help_page", "logout", "support", "support_new", "settings_page"}
 
 
 # ------------------------------------------------------------ helpers

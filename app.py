@@ -481,6 +481,37 @@ def tg_cron(secret):
     return f"sent {len(msgs)}"
 
 
+@app.route("/settings")
+def settings_page():
+    return render_template("settings.html", active="settings")
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    icons = [{"src": url_for("static", filename="icons/icon-192.png"), "sizes": "192x192", "type": "image/png", "purpose": "any"},
+             {"src": url_for("static", filename="icons/icon-512.png"), "sizes": "512x512", "type": "image/png", "purpose": "any"},
+             {"src": url_for("static", filename="icons/maskable-512.png"), "sizes": "512x512", "type": "image/png", "purpose": "maskable"}]
+    m = {"name": "Scope", "short_name": "Scope", "description": "Scope - precision . vision . success .",
+         "id": "/", "start_url": "/", "scope": "/", "display": "standalone", "orientation": "any",
+         "background_color": "#050914", "theme_color": "#050914", "icons": icons}
+    r = app.response_class(json.dumps(m), mimetype="application/manifest+json")
+    r.headers["Cache-Control"] = "no-cache"
+    return r
+
+
+@app.route("/sw.js")
+def service_worker():
+    r = send_file(os.path.join(BASE, "static", "sw.js"), mimetype="application/javascript")
+    r.headers["Cache-Control"] = "no-cache"
+    r.headers["Service-Worker-Allowed"] = "/"
+    return r
+
+
+@app.route("/offline")
+def offline_page():
+    return render_template("offline.html")
+
+
 @app.route("/options")
 def options_page():
     return render_template("options.html", active="options", updated=get_data()["updated"])
