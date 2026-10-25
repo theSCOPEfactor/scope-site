@@ -93,7 +93,7 @@ def init_db(path=None):
     INSERT OR IGNORE INTO settings VALUES('capital','1000000');
     """)
     for tbl, col in (("holdings", "manual_price REAL"), ("holdings", "manual_date TEXT"),
-                     ("trades", "charges REAL")):      # charges NULL = auto estimate
+                     ("trades", "charges REAL"), ("trades", "tag TEXT")):      # charges NULL = auto estimate
         try:
             con.execute("ALTER TABLE %s ADD COLUMN %s" % (tbl, col))
         except Exception:
@@ -387,6 +387,32 @@ def api_options():
     return jsonify(get_options())
 
 
+def _tg_state_path():
+    return os.path.join(acct.DATA_DIR, "tg_state.json")
+
+
+def _tg_load():
+    try:
+        with open(_tg_state_path()) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _tg_save(st):
+    try:
+        with open(_tg_state_path(), "w") as f:
+            json.dump(st, f)
+    except Exception as e:
+        print("tg state save error:", e)
+
+
+def _tg_send(chat, text):
+    tok = os.environ.get("TG_BOT_TOKEN", "")
+    return requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
+                         data={"chat_id": chat, "text": text}, timeout=20)
+
+
 @app.route("/tg/<secret>", methods=["POST"])
 def tg_hook(secret):
     """Telegram bot webhook: 'NIFTY low high poc' -> option chain zones reply. Fakt owner na chat ne j jawab."""
@@ -412,14 +438,47 @@ def tg_hook(secret):
                 from zones import HELP
                 out = HELP
             else:
-                from zones import reply_for
-                out = reply_for(text, get_options())
+                import zones
+                opt = get_options()
+                out = zones.reply_for(text, opt)
+                st = _tg_load()
+                zones.register_levels(st, text, opt, acct.now_ist().date().isoformat())
+                _tg_save(st)
             if out:
-                requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
-                              data={"chat_id": chat, "text": out}, timeout=20)
+                _tg_send(chat, out)
     except Exception as e:
         print("tg_hook error:", e)
     return "ok"
+
+
+@app.route("/tg/cron/<secret>")
+def tg_cron(secret):
+    """GitHub Action (market hours ma darek 30 min) aa link kholse. Aajna levels hoy to auto reading / alert moklse."""
+    import hmac
+    from flask import abort
+    import zones
+    want = os.environ.get("TG_SECRET", "")
+    owner = os.environ.get("TG_CHAT_ID", "").strip()
+    if not want or not hmac.compare_digest(secret, want):
+        abort(404)
+    now = acct.now_ist()
+    if not owner or now.weekday() >= 5 or not (9 <= now.hour < 16):
+        return "idle"
+    today = now.date().isoformat()
+    _opmem["t"] = 0                          # taaje taaru options.json lavo
+    opt = get_options()
+    st = _tg_load()
+    msgs, st = zones.cron_step(st, opt, today)
+    if not any(v.get("date") == today for k, v in st.items() if not k.startswith("_")) and st.get("_nudge") != today:
+        msgs.append("Aaj na Low/High haji nathi malya. Moklo: NIFTY 22406 22545 22480 (naam, Low, High, POC)")
+        st["_nudge"] = today
+    for t in msgs:
+        try:
+            _tg_send(owner, t)
+        except Exception as e:
+            print("tg_cron send error:", e)
+    _tg_save(st)
+    return f"sent {len(msgs)}"
 
 
 @app.route("/options")
@@ -727,6 +786,10 @@ def api_journal():
     return jsonify({"trades": out, "stats": stats, "months": {k: round(v) for k, v in month_totals.items()}})
 
 
+def _tag_in(d):
+    return (d.get("tag") or "").strip()[:40]
+
+
 def _charges_in(d):
     v = d.get("charges")
     if v in (None, ""):
@@ -735,6 +798,102 @@ def _charges_in(d):
         return max(0.0, float(v))
     except ValueError:
         return None
+
+
+def _range_for(period, today):
+    mon = today - dt.timedelta(days=today.weekday())
+    first = today.replace(day=1)
+    if period == "week":
+        return mon, today
+    if period == "lastweek":
+        return mon - dt.timedelta(days=7), mon - dt.timedelta(days=1)
+    if period == "lastmonth":
+        e = first - dt.timedelta(days=1)
+        return e.replace(day=1), e
+    if period == "all":
+        return dt.date(2000, 1, 1), today
+    return first, today
+
+
+@app.route("/api/review")
+def api_review():
+    """Closed trades (exit date in the period) -> win rate, payoff, profit factor, weekday / tag split, plain tips."""
+    period = request.args.get("period", "week")
+    today = dt.date.today()
+    a, b = _range_for(period, today)
+    brk = get_brokerage()
+    rows = db().execute("SELECT * FROM trades WHERE exit_price IS NOT NULL AND exit_date IS NOT NULL "
+                        "ORDER BY exit_date, id").fetchall()
+    tr = []
+    for r in rows:
+        t = dict(r)
+        if not (a.isoformat() <= t["exit_date"] <= b.isoformat()):
+            continue
+        gross, ch, net, pct, px, auto = net_of(t, None, brk)
+        tr.append({"symbol": t["symbol"], "date": t["exit_date"], "net": net, "gross": gross, "ch": ch,
+                   "tag": (t.get("tag") or "").strip()})
+    n = len(tr)
+    out = {"range": [a.isoformat(), b.isoformat()], "n": n, "tips": []}
+    if not n:
+        out["tips"].append("No closed trades in this period yet.")
+        return jsonify(out)
+    wins = [t for t in tr if t["net"] > 0]
+    losses = [t for t in tr if t["net"] <= 0]
+    gw, gl = sum(t["net"] for t in wins), -sum(t["net"] for t in losses)
+    avg_w = gw / len(wins) if wins else 0.0
+    avg_l = gl / len(losses) if losses else 0.0
+    net = sum(t["net"] for t in tr)
+    chg = sum(t["ch"] for t in tr)
+    streak = cur = 0
+    for t in tr:
+        cur = cur + 1 if t["net"] <= 0 else 0
+        streak = max(streak, cur)
+    wd = defaultdict(lambda: [0, 0.0, 0])
+    tg = defaultdict(lambda: [0, 0.0, 0])
+    for t in tr:
+        d = dt.date.fromisoformat(t["date"]).strftime("%a")
+        for acc, key in ((wd, d), (tg, t["tag"] or "(no tag)")):
+            acc[key][0] += 1; acc[key][1] += t["net"]; acc[key][2] += 1 if t["net"] > 0 else 0
+    order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    best = max(tr, key=lambda t: t["net"]); worst = min(tr, key=lambda t: t["net"])
+    out.update(
+        wins=len(wins), losses=len(losses), win_rate=round(len(wins) / n * 100), net=round(net),
+        gross=round(sum(t["gross"] for t in tr)), charges=round(chg),
+        avg_win=round(avg_w), avg_loss=round(-avg_l),
+        payoff=round(avg_w / avg_l, 2) if avg_l else None,
+        pf=round(gw / gl, 2) if gl else None,
+        expectancy=round(net / n), streak=streak,
+        best={"symbol": best["symbol"], "net": round(best["net"]), "date": best["date"]},
+        worst={"symbol": worst["symbol"], "net": round(worst["net"]), "date": worst["date"]},
+        weekday=[{"d": d, "n": wd[d][0], "net": round(wd[d][1]), "wr": round(wd[d][2] / wd[d][0] * 100)} for d in order if d in wd],
+        tags=sorted([{"tag": k, "n": v[0], "net": round(v[1]), "wr": round(v[2] / v[0] * 100)} for k, v in tg.items()],
+                    key=lambda x: x["net"]))
+    tips = out["tips"]
+    inr_ = lambda v: ("-" if v < 0 else "") + "₹" + format(abs(int(round(v))), ",")
+    if n < 5:
+        tips.append(f"Only {n} closed trade{'s' if n != 1 else ''} in this period, so treat these numbers as a rough guide, not a verdict.")
+    if avg_l and avg_w and avg_l > avg_w:
+        tips.append(f"Your average loss ({inr_(avg_l)}) is bigger than your average win ({inr_(avg_w)}). Cutting losers sooner or letting winners run a little longer would help most.")
+    if len(wins) / n < 0.4 and avg_l and avg_w / avg_l < 1.5:
+        tips.append("Win rate is under 40% and your wins are not much bigger than your losses. This mix loses money over time; be pickier about entries.")
+    gp = sum(t["gross"] for t in tr if t["gross"] > 0)
+    if gp > 0 and chg > 0.25 * gp:
+        tips.append(f"Charges took {round(chg / gp * 100)}% of your gross profit ({inr_(chg)}). Fewer, better-planned trades keep more of what you earn.")
+    if streak >= 3:
+        tips.append(f"Longest losing run: {streak} trades in a row. After 2 losses a break or a smaller size protects your capital.")
+    bad = [t for t in out["tags"] if t["tag"].lower().startswith("mistake") and t["net"] < 0]
+    if bad:
+        tips.append("Trades tagged as mistakes cost you " + inr_(-sum(t["net"] for t in bad)) + ". Naming them is the first step to stopping them.")
+    wk = [d for d in out["weekday"] if d["n"] >= 2]
+    if len(wk) >= 2:
+        w = min(wk, key=lambda d: d["net"])
+        if w["net"] < 0:
+            tips.append(f"Your weakest day is {w['d']} ({inr_(w['net'])} over {w['n']} trades).")
+    if net > 0 and out["expectancy"] > 0:
+        tips.append(f"On average each trade earned {inr_(out['expectancy'])} after charges. Keep your size and rules the same.")
+    elif net <= 0:
+        tips.append(f"On average each trade lost {inr_(-out['expectancy'])} after charges. Review the worst trade ({worst['symbol']}) first.")
+    return jsonify(out)
 
 
 @app.route("/api/brokerage", methods=["POST"])
@@ -754,11 +913,11 @@ def api_brokerage():
 def api_trade_add():
     d = request.get_json(force=True)
     db().execute(
-        "INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date,note,charges) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO trades(symbol,dir,kind,qty,entry_price,entry_date,exit_price,exit_date,note,charges,tag) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
         (d["symbol"].strip().upper(), d.get("dir", "L"), d.get("kind", "C"), int(d["qty"]),
          float(d["entry_price"]), d["entry_date"],
          float(d["exit_price"]) if d.get("exit_price") not in (None, "") else None,
-         d.get("exit_date") or None, d.get("note", ""), _charges_in(d)))
+         d.get("exit_date") or None, d.get("note", ""), _charges_in(d), _tag_in(d)))
     db().commit()
     return jsonify(ok=True)
 
@@ -770,11 +929,11 @@ def api_trade_edit(tid):
     else:
         d = request.get_json(force=True)
         db().execute(
-            "UPDATE trades SET symbol=?,dir=?,kind=?,qty=?,entry_price=?,entry_date=?,exit_price=?,exit_date=?,note=?,charges=? WHERE id=?",
+            "UPDATE trades SET symbol=?,dir=?,kind=?,qty=?,entry_price=?,entry_date=?,exit_price=?,exit_date=?,note=?,charges=?,tag=? WHERE id=?",
             (d["symbol"].strip().upper(), d.get("dir", "L"), d.get("kind", "C"), int(d["qty"]),
              float(d["entry_price"]), d["entry_date"],
              float(d["exit_price"]) if d.get("exit_price") not in (None, "") else None,
-             d.get("exit_date") or None, d.get("note", ""), _charges_in(d), tid))
+             d.get("exit_date") or None, d.get("note", ""), _charges_in(d), _tag_in(d), tid))
     db().commit()
     return jsonify(ok=True)
 

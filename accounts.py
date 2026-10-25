@@ -12,7 +12,7 @@ Environment variables (WSGI file ma set karvana):
 """
 import os, re, json, hmac, hashlib, secrets, sqlite3, math, datetime as dt
 import requests
-from flask import request, session, redirect, url_for, render_template, g, abort
+from flask import request, session, redirect, url_for, render_template, g, abort, send_file
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("SCOPE_DATA_DIR", os.path.join(BASE, "userdata"))
@@ -24,7 +24,7 @@ MONTHS = (1, 3, 6, 12)
 DEFAULT_PRICE_PER_MONTH = 5000     # fakat shuruat nu; admin page ma badlay
 
 # aa pages login vagar pan khulla che
-PUBLIC = {"login", "logout", "register", "verify", "resend_otp", "static", "tg_hook"}
+PUBLIC = {"login", "logout", "register", "verify", "resend_otp", "static", "tg_hook", "tg_cron", "terms"}
 # plan puru thayo hoy tyare pan aa pages chalse (profile, payment, help)
 EXPIRED_OK = {"profile", "pay", "help_page", "logout", "support", "support_new"}
 
@@ -488,7 +488,52 @@ def route_admin():
                         WHERE p.status='pending' ORDER BY p.id""").fetchall()
     c.close()
     rows = [(u, status_msg(u), days_left(u)) for u in users]
-    return render_template("admin.html", rows=rows, pend=pend, active="admin", plans=get_plans(False))
+    return render_template("admin.html", rows=rows, pend=pend, active="admin", plans=get_plans(False),
+                           backup=backup_info())
+
+
+BACKUP_NOTE = os.path.join(DATA_DIR, "last_backup.txt")
+
+
+def backup_info():
+    """(last backup text, days since | None)"""
+    try:
+        t = dt.datetime.fromisoformat(open(BACKUP_NOTE).read().strip())
+        d = max(0, (now_ist() - t).days)
+        return t.strftime("%d %b %Y, %H:%M"), d
+    except Exception:
+        return None, None
+
+
+def route_admin_backup():
+    """Badha databases (owner journal + users + badha members na journal) ek zip ma. Safe copy (sqlite backup)."""
+    import io, glob, zipfile, tempfile
+    _need_admin()
+    paths = [os.path.join(BASE, "journal.db")] + sorted(glob.glob(os.path.join(DATA_DIR, "*.db")))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z, tempfile.TemporaryDirectory() as tmp:
+        for i, src in enumerate(paths):
+            if not os.path.exists(src):
+                continue
+            dst = os.path.join(tmp, "%d.db" % i)
+            a, b = sqlite3.connect(src), sqlite3.connect(dst)
+            try:
+                a.backup(b)
+            finally:
+                a.close(); b.close()
+            z.write(dst, ("owner-journal.db" if src.endswith("journal.db") and os.path.dirname(src) == BASE
+                          else os.path.basename(src)))
+    try:
+        open(BACKUP_NOTE, "w").write(now_ist().isoformat())
+    except Exception:
+        pass
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, mimetype="application/zip",
+                     download_name="scope-full-backup-%s.zip" % now_ist().strftime("%Y-%m-%d"))
+
+
+def route_terms():
+    return render_template("terms.html", active="terms")
 
 
 def route_admin_user(uid):
@@ -630,6 +675,8 @@ def init_app(app):
     R("/admin/support", "admin_support", route_admin_support)
     R("/admin/reply", "admin_reply", route_admin_reply, methods=["POST"])
     R("/admin", "admin", route_admin)
+    R("/admin/backup", "admin_backup", route_admin_backup)
+    R("/terms", "terms", route_terms)
     R("/admin/user/<int:uid>", "admin_user", route_admin_user)
     R("/admin/act", "admin_act", route_admin_act, methods=["POST"])
     app.context_processor(template_ctx)

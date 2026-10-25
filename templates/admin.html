@@ -8,6 +8,13 @@
 <td><form method="post" action="{{ url_for('admin_act') }}" style="display:flex;gap:6px;justify-content:flex-end"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="pay_id" value="{{ p['id'] }}">
 <button class="btn sm primary" name="action" value="approve" onclick="return confirm('Check the UTR in your bank app. Approve?')">Approve</button><button class="btn sm danger" name="action" value="reject">Reject</button></form></td></tr>{% endfor %}
 </tbody></table></div><p class="note">Match the UTR and amount with your bank / UPI app before approving.</p>{% else %}<p class="mut">No pending payments.</p>{% endif %}</div>
+<div class="card"><h2>Backup</h2>
+<p class="mut" style="margin:0 0 10px">One zip with your journal, all users and every member's journal. Keep it on your computer or Google Drive. Do it at least once a week.</p>
+<div class="row" style="gap:12px;align-items:center">
+<a class="btn primary" href="{{ url_for('admin_backup') }}">⬇ Download full backup</a>
+{% if backup[0] %}<span class="{{ 'neg' if backup[1] is not none and backup[1] > 7 else 'mut' }}">Last backup: {{ backup[0] }}{% if backup[1] is not none %} ({{ backup[1] }} day{{ 's' if backup[1] != 1 }} ago){% endif %}{% if backup[1] is not none and backup[1] > 7 %} - overdue{% endif %}</span>
+{% else %}<span class="neg">No backup taken yet</span>{% endif %}
+</div></div>
 <div class="card"><h2>Plans and prices (only you can change)</h2>
 <form method="post" action="{{ url_for('admin_act') }}"><input type="hidden" name="_csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="plans">
 <div class="wrap"><table><thead><tr><th class="l">Duration</th><th class="l">Price (₹, total)</th><th>Offer to users</th></tr></thead><tbody>

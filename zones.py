@@ -103,3 +103,75 @@ def reply_for(text, opt):
         return f"Option data ma {name} nathi. Options job chalavo (GitHub Actions)."
     A = analyse(ix)
     return build(name, A, levels(low, high), poc) + f"\n(Option data: {(opt or {}).get('updated')})"
+
+
+# ---------------------------------------------------------------- auto messages (cron)
+def zone_of(spot, L):
+    if spot > L["bo"]:
+        return "Bhav Break out upar che."
+    if spot < L["bd"]:
+        return "Bhav Break down niche che."
+    if L["sr"] <= spot <= L["bo"]:
+        return "Bhav Sell rev ane Break out vachche che (no-trade zone)."
+    if spot < L["br"]:
+        return "Bhav Break down ane Buy rev vachche che."
+    return "Bhav Buy rev ane Sell rev vachche che."
+
+
+def snapshot(A):
+    return {"call": A["call"], "put": A["put"], "pain": A["pain"],
+            "pcr": round(A["pcr"], 2) if A["pcr"] else None, "expiry": A["expiry"]}
+
+
+def _band(p):
+    return None if p is None else (0 if p < 0.8 else 2 if p > 1.2 else 1)
+
+
+def changes(prev, A):
+    out = []
+    if prev.get("expiry") and prev["expiry"] != A["expiry"]:
+        out.append(f"Expiry badlayi: {prev['expiry']} -> {A['expiry']}")
+    if prev.get("call") != A["call"]:
+        out.append(f"Call wall (resistance): {f0(prev['call'])} -> {f0(A['call'])}")
+    if prev.get("put") != A["put"]:
+        out.append(f"Put wall (support): {f0(prev['put'])} -> {f0(A['put'])}")
+    if prev.get("pain") is not None and abs(A["pain"] - prev["pain"]) >= 0.0025 * A["spot"]:
+        out.append(f"Max pain: {f0(prev['pain'])} -> {f0(A['pain'])}")
+    if _band(prev.get("pcr")) != _band(A["pcr"]) and A["pcr"]:
+        out.append(f"PCR: {prev.get('pcr')} -> {A['pcr']:.2f}")
+    return out
+
+
+def register_levels(state, text, opt, today):
+    """Telegram msg ma thi levels jaanya pachhi aajna din mate yaad rakho (reply to alredy gayo che)"""
+    got = parse_msg(text)
+    if not got:
+        return
+    name, low, high, poc = got
+    ix = (opt or {}).get("indices", {}).get(name)
+    if not ix or not ix.get("expiries"):
+        return
+    state[name] = {"low": low, "high": high, "poc": poc, "date": today, "sent": True, "snap": snapshot(analyse(ix))}
+
+
+def cron_step(state, opt, today):
+    """Aajna levels vala index mate: pehli vaar full reading, pachhi fakt wall/max pain/PCR badlay tyare alert."""
+    msgs = []
+    tag = f"\n(Option data: {(opt or {}).get('updated')})"
+    for name, st in list(state.items()):
+        if name.startswith("_") or st.get("date") != today:
+            continue
+        ix = (opt or {}).get("indices", {}).get(name)
+        if not ix or not ix.get("expiries"):
+            continue
+        A, L = analyse(ix), levels(st["low"], st["high"])
+        if not st.get("sent") or not st.get("snap"):
+            msgs.append(build(name, A, L, st.get("poc")) + tag)
+            st["sent"], st["snap"] = True, snapshot(A)
+            continue
+        ch = changes(st["snap"], A)
+        if ch:
+            msgs.append(f"{name} | option chain badlayu | Spot {f1(A['spot'])}\n" + "\n".join("- " + c for c in ch)
+                        + f"\n\n{zone_of(A['spot'], L)}\nPuro reading mate bot ne pharithi levels moklo." + tag)
+            st["snap"] = snapshot(A)
+    return msgs, state

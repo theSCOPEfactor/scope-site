@@ -28,7 +28,7 @@
       <label class="fld">Mobile number<input name="mobile" inputmode="numeric" maxlength="14" value="{{ f.get('mobile','') }}" required></label>
     </div>
     <label class="fld chk" style="margin-top:16px"><input type="checkbox" name="consent" value="1" required>
-      <span>I understand Scope is an educational and informational tool, not investment advice, and I agree to the use of my name, email and mobile for my account.</span></label>
+      <span>I understand Scope is an educational and informational tool, not investment advice, and I agree to the <a href="{{ url_for('terms') }}" target="_blank">Terms &amp; Privacy</a>, including the use of my name, email and mobile for my account.</span></label>
     <button class="btn primary" type="submit" style="width:100%;justify-content:center;margin-top:14px">Register and send OTP</button>
     <p class="note" style="text-align:center">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
   </form>

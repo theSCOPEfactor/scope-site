@@ -2,7 +2,7 @@
 {% block body %}
 <div class="pagehead">
   <div><h1>{{ 'Target plan' if start=='plan' else 'Trading Journal' }}</h1><p class="sub">{{ 'The plan that gets you to your target.' if start=='plan' else 'Every trade, month by month, and the plan that gets you to your target.' }}</p></div>
-  <div class="seg tabs" id="tabs"{% if start=='plan' %} style="display:none"{% endif %}><button class="on" data-t="trades">Trades</button><button data-t="plan">Target plan</button></div>
+  <div class="seg tabs" id="tabs"{% if start=='plan' %} style="display:none"{% endif %}><button class="on" data-t="trades">Trades</button><button data-t="review">Review</button><button data-t="plan">Target plan</button></div>
 </div>
 
 <!-- ============ TRADES ============ -->
@@ -27,6 +27,23 @@
       <tbody id="rows"></tbody>
     </table></div>
     <div style="text-align:center;margin-top:12px"><button class="btn primary" onclick="openForm()">＋ Log new trade</button></div>
+  </div>
+</section>
+
+<!-- ============ REVIEW ============ -->
+<section id="t-review" hidden>
+  <div class="card row" style="justify-content:space-between;align-items:center">
+    <div class="seg" id="rv_p"><button data-p="week" class="on">This week</button><button data-p="lastweek">Last week</button><button data-p="month">This month</button><button data-p="lastmonth">Last month</button><button data-p="all">All time</button></div>
+    <span class="mut" id="rv_range"></span>
+  </div>
+  <div class="card"><div class="stats" id="rv_stats"></div></div>
+  <div class="card" id="rv_tipscard"><h2>What your numbers say</h2><ul id="rv_tips" style="margin:6px 0 0;padding-left:20px;line-height:1.7"></ul></div>
+  <div class="card" id="rv_split" hidden>
+    <div class="row" style="gap:24px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px"><h2>By day of week</h2><div class="wrap"><table><thead><tr><th class="l">Day</th><th>Trades</th><th>Win %</th><th>Net</th></tr></thead><tbody id="rv_wd"></tbody></table></div></div>
+      <div style="flex:1;min-width:240px"><h2>By tag</h2><div class="wrap"><table><thead><tr><th class="l">Tag</th><th>Trades</th><th>Win %</th><th>Net</th></tr></thead><tbody id="rv_tg"></tbody></table></div>
+        <p class="note">Add a tag (setup or mistake) when you log a trade. Start a tag with "Mistake" to see what your mistakes cost.</p></div>
+    </div>
   </div>
 </section>
 
@@ -66,6 +83,7 @@
     <label class="fld">Entry date<input id="f_ed" type="date"></label>
     <label class="fld">Exit price (blank = open)<input id="f_xp" type="number" step="0.05"></label>
     <label class="fld">Exit date<input id="f_xd" type="date"></label>
+    <label class="fld full">Tag (setup or mistake) - optional<input id="f_tag" list="tags" maxlength="40" placeholder="e.g. Breakout, Reversal, Mistake: no stoploss"></label>
     <label class="fld full">Taxes &amp; charges ₹ (leave blank = automatic estimate)<input id="f_ch" type="number" min="0" step="0.01" placeholder="auto"></label>
     <label class="fld full">Thesis / note<textarea id="f_note" rows="3"></textarea></label>
   </div>
@@ -74,7 +92,9 @@
     <button class="btn primary" onclick="saveTrade()">Save</button>
   </div>
 </div></div>
+<style>.tg{color:#7dd3fc}</style>
 <datalist id="syms"></datalist>
+<datalist id="tags"><option value="Breakout"><option value="Reversal"><option value="Target"><option value="Trend follow"><option value="Mistake: no stoploss"><option value="Mistake: chased price"><option value="Mistake: exited early"><option value="Mistake: overtraded"><option value="Mistake: against plan"></datalist>
 {% endblock %}
 
 {% block scripts %}
@@ -92,7 +112,8 @@ let month=new Date().toISOString().slice(0,7), editId=null, DATA=null, CAP=0, pl
 /* ---------- tabs ---------- */
 function showTab(t){
   [...$('tabs').children].forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  $('t-trades').hidden=t!=='trades'; $('t-plan').hidden=t!=='plan';
+  $('t-trades').hidden=t!=='trades'; $('t-review').hidden=t!=='review'; $('t-plan').hidden=t!=='plan';
+  if(t==='review') loadReview();
   history.replaceState(null,'','#'+t);
   if(t==='plan'&&!planReady){planReady=true;initPlan()}
 }
@@ -116,7 +137,7 @@ async function load(){
     +st('Avg held',s.avg_held+'d')+st('Winners held',s.w_held+'d','pos')+st('Losers held',s.l_held+'d','neg')
     +st('Total won',inr(s.win_amt),'pos')+st('Total lost',inr(s.loss_amt),'neg');
   $('rows').innerHTML=r.trades.length?r.trades.map(t=>`<tr>
-    <td class="l"><b>${esc(t.symbol)}</b>${t.note?`<br><small class="mut">${esc(t.note).slice(0,70)}</small>`:''}</td>
+    <td class="l"><b>${esc(t.symbol)}</b>${t.tag?`<br><small class="tg">${esc(t.tag)}</small>`:''}${t.note?`<br><small class="mut">${esc(t.note).slice(0,70)}</small>`:''}</td>
     <td><span class="tag ${t.dir}">${t.dir}</span></td><td>${t.kind}</td><td>${t.qty}</td>
     <td>${t.entry_price.toFixed(2)}</td><td>${t.px==null?'-':t.px.toFixed(2)}${t.closed?'':' <small class="mut">LTP</small>'}</td>
     <td class="${cls(t.pct)}">${t.pct>0?'+':''}${t.pct}%</td><td>${t.held}d</td>
@@ -142,13 +163,13 @@ function openForm(t){
   $('f_symbol').value=t?t.symbol:''; $('f_dir').value=t?t.dir:'L'; $('f_kind').value=t?t.kind:'C'; $('f_qty').value=t?t.qty:'';
   $('f_ep').value=t?t.entry_price:''; $('f_ed').value=t?t.entry_date:new Date().toISOString().slice(0,10);
   $('f_xp').value=t&&t.exit_price!=null?t.exit_price:''; $('f_xd').value=t&&t.exit_date?t.exit_date:''; $('f_note').value=t?t.note:'';
-  $('f_ch').value=t&&!t.ch_auto?t.ch:'';
+  $('f_ch').value=t&&!t.ch_auto?t.ch:''; $('f_tag').value=t&&t.tag?t.tag:'';
   $('modal').classList.add('on');
 }
 function closeForm(){$('modal').classList.remove('on')}
 async function saveTrade(){
   const b={symbol:$('f_symbol').value,dir:$('f_dir').value,kind:$('f_kind').value,qty:$('f_qty').value,entry_price:$('f_ep').value,
-    entry_date:$('f_ed').value,exit_price:$('f_xp').value,exit_date:$('f_xd').value,note:$('f_note').value,charges:$('f_ch').value};
+    entry_date:$('f_ed').value,exit_price:$('f_xp').value,exit_date:$('f_xd').value,note:$('f_note').value,charges:$('f_ch').value,tag:$('f_tag').value};
   if(!b.symbol||!b.qty||!b.entry_price||!b.entry_date){alert('Symbol, quantity, entry price and entry date are required');return}
   if(b.exit_price&&!b.exit_date) b.exit_date=new Date().toISOString().slice(0,10);
   await fetch(editId?'/api/trade/'+editId:'/api/trade',{method:editId?'PUT':'POST',body:JSON.stringify(b)});
@@ -162,6 +183,27 @@ $('imp').onchange=async e=>{
   alert(r.ok?(r.created+' new trades, '+r.closed+' closed'+(r.dup?', '+r.dup+' already imported (skipped)':'')+(r.skipped?', '+r.skipped+' rows not understood':'')):(r.error||'Import failed')); e.target.value=''; load(); if(planReady) refreshPnl();
 };
 fetch('/api/stocks').then(r=>r.json()).then(d=>{$('syms').innerHTML=d.stocks.map(s=>`<option value="${s.symbol}">`).join('')});
+
+/* ---------- review ---------- */
+let RV='week';
+$('rv_p').onclick=e=>{const b=e.target.closest('button'); if(!b) return; RV=b.dataset.p;
+  [...$('rv_p').children].forEach(x=>x.classList.toggle('on',x===b)); loadReview()};
+async function loadReview(){
+  const r=await (await fetch('/api/review?period='+RV)).json();
+  $('rv_range').textContent=RV==='all'?'':r.range[0]+' to '+r.range[1];
+  const st=(l,v,c='')=>`<div class="stat"><small>${l}</small><b class="${c}">${v}</b></div>`;
+  if(!r.n){ $('rv_stats').innerHTML='<div class="empty" style="padding:14px">No closed trades in this period.</div>'; $('rv_split').hidden=true;
+    $('rv_tips').innerHTML=r.tips.map(x=>'<li>'+esc(x)+'</li>').join(''); return }
+  $('rv_stats').innerHTML=st('Trades',r.n)+st('Win rate',r.win_rate+'%')+st('W / L',r.wins+' / '+r.losses)+st('Net P&L',inr(r.net),cls(r.net))
+    +st('Charges','-'+inr(r.charges).replace('-',''),'neg')+st('Avg win',inr(r.avg_win),'pos')+st('Avg loss',inr(r.avg_loss),'neg')
+    +st('Win / loss size',r.payoff==null?'-':r.payoff+'x')+st('Profit factor',r.pf==null?'-':r.pf)+st('Per trade',inr(r.expectancy),cls(r.expectancy))
+    +st('Best trade',esc(r.best.symbol)+' '+inr(r.best.net),'pos')+st('Worst trade',esc(r.worst.symbol)+' '+inr(r.worst.net),'neg')
+    +st('Longest losing run',r.streak);
+  $('rv_tips').innerHTML=r.tips.map(x=>'<li>'+esc(x)+'</li>').join('');
+  const row=x=>`<tr><td class="l">${esc(x.d||x.tag)}</td><td>${x.n}</td><td>${x.wr}%</td><td class="${cls(x.net)}">${inr(x.net)}</td></tr>`;
+  $('rv_wd').innerHTML=r.weekday.map(row).join(''); $('rv_tg').innerHTML=r.tags.map(row).join('');
+  $('rv_split').hidden=false;
+}
 
 /* ---------- target plan ---------- */
 let MODE='target', VIEW='monthly', PNL={closed:[],unrealized:0}, ROWS=[], BUILT=null;
@@ -298,7 +340,7 @@ function downloadCsv(){
 
 load();
 const qs=new URLSearchParams(location.search).get('tab');
-showTab(START==='plan'||qs==='plan'||location.hash==='#plan'?'plan':'trades');
+showTab(START==='plan'||qs==='plan'||location.hash==='#plan'?'plan':location.hash==='#review'?'review':'trades');
 </script>
 {% endraw %}
 {% endblock %}
