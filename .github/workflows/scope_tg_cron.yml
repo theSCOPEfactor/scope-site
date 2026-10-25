@@ -1,10 +1,20 @@
 name: Scope Telegram Auto
 
-# Market time ma darek 30 min (options job pachhi) site ne jagadva: aajna levels hoy to bot auto reading / alert moklse.
+# 1) Market time ma darek 30 min: aajna levels hoy to bot auto reading / alert moklse
+# 2) Sanje 7 vage (Mon-Fri): favourite stocks level ni najik hoy to digest
+# 3) Shanivare savare 10 vage: journal nu week review
 on:
   schedule:
     - cron: "10,40 4-9 * * 1-5"     # 09:40 - 15:10 IST
+    - cron: "30 13 * * 1-5"         # 19:00 IST
+    - cron: "30 4 * * 6"            # Sat 10:00 IST
   workflow_dispatch:
+    inputs:
+      task:
+        description: "auto = market alert | eod = favourites digest | weekly = journal review"
+        default: "auto"
+        type: choice
+        options: [auto, eod, weekly]
 
 permissions:
   contents: read
@@ -17,6 +27,14 @@ jobs:
       - name: Call the site
         env:
           TG_SECRET: ${{ secrets.TG_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          TASK_IN: ${{ github.event.inputs.task }}
         run: |
           if [ -z "$TG_SECRET" ]; then echo "TG_SECRET repo secret nathi - skip"; exit 0; fi
-          curl -fsS --max-time 90 "https://scopechangeyourvision.pythonanywhere.com/tg/cron/$TG_SECRET"; echo
+          case "$SCHEDULE" in
+            "30 13 * * 1-5") T=eod ;;
+            "30 4 * * 6") T=weekly ;;
+            *) T="${TASK_IN:-auto}" ;;
+          esac
+          echo "task=$T"
+          curl -fsS --max-time 90 "https://scopechangeyourvision.pythonanywhere.com/tg/cron/$TG_SECRET?task=$T"; echo
