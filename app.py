@@ -90,6 +90,7 @@ def init_db(path=None):
       note TEXT DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS execs(k TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS favs(symbol TEXT PRIMARY KEY, added TEXT);
     INSERT OR IGNORE INTO settings VALUES('capital','1000000');
     """)
     for tbl, col in (("holdings", "manual_price REAL"), ("holdings", "manual_date TEXT"),
@@ -453,7 +454,10 @@ def tg_hook(secret):
 
 @app.route("/tg/cron/<secret>")
 def tg_cron(secret):
-    """GitHub Action (market hours ma darek 30 min) aa link kholse. Aajna levels hoy to auto reading / alert moklse."""
+    """GitHub Action aa link kholse.
+    task=auto   : market time ma - aajna levels hoy to auto reading / alert
+    task=eod    : sanje - favourite stocks level ni najik hoy to digest
+    task=weekly : shanivare - journal nu week review"""
     import hmac
     from flask import abort
     import zones
@@ -461,8 +465,28 @@ def tg_cron(secret):
     owner = os.environ.get("TG_CHAT_ID", "").strip()
     if not want or not hmac.compare_digest(secret, want):
         abort(404)
+    if not owner:
+        return "idle"
+    task = request.args.get("task", "auto")
+    if task in ("eod", "weekly"):
+        msgs = []
+        try:
+            if task == "eod":
+                _mem["t"] = 0                                   # taaja data.json lavo
+                d = get_data()
+                favs = [r["symbol"] for r in db().execute("SELECT symbol FROM favs ORDER BY added, symbol").fetchall()]
+                t = zones.fav_digest(favs, d.get("stocks", []), d.get("updated"))
+                if t:
+                    msgs.append(t)
+            else:
+                msgs.append(zones.review_text(review_data("week")))
+            for t in msgs:
+                _tg_send(owner, t)
+        except Exception as e:
+            print("tg_cron task error:", e)
+        return f"sent {len(msgs)}"
     now = acct.now_ist()
-    if not owner or now.weekday() >= 5 or not (9 <= now.hour < 16):
+    if now.weekday() >= 5 or not (9 <= now.hour < 16):
         return "idle"
     today = now.date().isoformat()
     _opmem["t"] = 0                          # taaje taaru options.json lavo
@@ -848,8 +872,11 @@ def _range_for(period, today):
 
 @app.route("/api/review")
 def api_review():
+    return jsonify(review_data(request.args.get("period", "week")))
+
+
+def review_data(period):
     """Closed trades (exit date in the period) -> win rate, payoff, profit factor, weekday / tag split, plain tips."""
-    period = request.args.get("period", "week")
     today = dt.date.today()
     a, b = _range_for(period, today)
     brk = get_brokerage()
@@ -867,7 +894,7 @@ def api_review():
     out = {"range": [a.isoformat(), b.isoformat()], "n": n, "tips": []}
     if not n:
         out["tips"].append("No closed trades in this period yet.")
-        return jsonify(out)
+        return out
     wins = [t for t in tr if t["net"] > 0]
     losses = [t for t in tr if t["net"] <= 0]
     gw, gl = sum(t["net"] for t in wins), -sum(t["net"] for t in losses)
@@ -924,7 +951,7 @@ def api_review():
         tips.append(f"On average each trade earned {inr_(out['expectancy'])} after charges. Keep your size and rules the same.")
     elif net <= 0:
         tips.append(f"On average each trade lost {inr_(-out['expectancy'])} after charges. Review the worst trade ({worst['symbol']}) first.")
-    return jsonify(out)
+    return out
 
 
 @app.route("/api/brokerage", methods=["POST"])
@@ -965,6 +992,29 @@ def api_trade_edit(tid):
              float(d["entry_price"]), d["entry_date"],
              float(d["exit_price"]) if d.get("exit_price") not in (None, "") else None,
              d.get("exit_date") or None, d.get("note", ""), _charges_in(d), _tag_in(d), tid))
+    db().commit()
+    return jsonify(ok=True)
+
+
+@app.route("/api/favs")
+def api_favs():
+    rows = db().execute("SELECT symbol FROM favs ORDER BY added, symbol").fetchall()
+    return jsonify(symbols=[r["symbol"] for r in rows])
+
+
+@app.route("/api/fav", methods=["POST"])
+def api_fav():
+    d = request.get_json(force=True, silent=True) or {}
+    sym = _norm_sym(d.get("symbol", ""))
+    if not sym or len(sym) > 30:
+        return jsonify(ok=False), 400
+    if d.get("on"):
+        n = db().execute("SELECT COUNT(*) FROM favs").fetchone()[0]
+        if n >= 200:
+            return jsonify(ok=False, error="Up to 200 favourites"), 400
+        db().execute("INSERT OR IGNORE INTO favs(symbol,added) VALUES(?,?)", (sym, dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    else:
+        db().execute("DELETE FROM favs WHERE symbol=?", (sym,))
     db().commit()
     return jsonify(ok=True)
 

@@ -118,7 +118,7 @@
 })();
 
 /* ===== shared: level names (flip NEUTRAL_NAMES to true for chart-style wording) + price ladder ===== */
-window.NEUTRAL_NAMES = true;
+window.NEUTRAL_NAMES = false;
 window.LVNAME = function (k) {
   var o = {d1:'Deep buy reversal 1', d2:'Deep buy reversal 2', t1:'Target 1', sr:'Sell reversal', br:'Buy reversal'};
   var n = {d1:'Deep reversal 1', d2:'Deep reversal 2', t1:'Extension', sr:'Upper reversal', br:'Lower reversal'};
@@ -183,80 +183,40 @@ window.ScopeLadder = (function () {
   }
   return {levelsOf: levelsOf, html: html, bind: bind};
 })();
-/* data source badge */
-(function(){
-  const el = document.getElementById('data-src');
-  if(!el) return;
-  fetch('/api/status').then(r=>r.json()).then(d=>{
-    const src = d.source || '—';
-    const up = d.updated || '—';
-    const problem = d.problem ? ' ⚠' : '';
-    el.textContent = src + ' · ' + up + problem;
-    if(d.problem) el.style.color = 'var(--neg)';
-  }).catch(()=>{ el.textContent = 'Data unavailable'; });
-})();
-/* ===== Watchlist ===== */
-window.Watchlist = (function(){
-  const KEY = 'scope_watch';
-  function all(){ try { return JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(e){ return []; } }
-  function save(a){ localStorage.setItem(KEY, JSON.stringify(a)); }
-  function has(sym){ return all().includes(String(sym).toUpperCase()); }
-  function toggle(sym){
-    sym = String(sym).toUpperCase();
-    let a = all();
-    if(a.includes(sym)) a = a.filter(x=>x!==sym); else a.unshift(sym);
-    if(a.length > 40) a = a.slice(0,40);
-    save(a);
-    return a.includes(sym);
-  }
-  function starBtn(sym){
-    const on = has(sym);
-    return `<button class="btn sm wl-btn" data-sym="${sym}" title="Watchlist" style="margin-left:8px">${on?'★':'☆'} Watch</button>`;
-  }
-  document.addEventListener('click', function(e){
-    const b = e.target.closest('.wl-btn');
-    if(!b) return;
-    const on = toggle(b.dataset.sym);
-    b.innerHTML = (on?'★':'☆') + ' Watch';
-    toast(on ? 'Added to watchlist' : 'Removed from watchlist');
-  });
-  return { all, has, toggle, starBtn };
-})();
-/* ===== Data badge ===== */
-(function(){
-  const el = document.getElementById('data-src');
-  if(!el) return;
-  fetch('/api/status').then(r=>r.json()).then(d=>{
-    el.textContent = (d.source||'—') + ' · ' + (d.updated||'—') + (d.problem?' ⚠':'');
-    if(d.problem) el.style.color = 'var(--neg)';
-  }).catch(()=>{ el.textContent = 'Data unavailable'; });
-})();
 
-/* ===== Watchlist ===== */
-window.Watchlist = (function(){
-  const KEY = 'scope_watch';
-  function all(){ try { return JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(e){ return []; } }
-  function save(a){ localStorage.setItem(KEY, JSON.stringify(a)); }
-  function has(sym){ return all().includes(String(sym).toUpperCase()); }
-  function toggle(sym){
-    sym = String(sym).toUpperCase();
-    let a = all();
-    if(a.includes(sym)) a = a.filter(x=>x!==sym); else a.unshift(sym);
-    if(a.length > 40) a = a.slice(0,40);
-    save(a);
-    return a.includes(sym);
+/* ---- favourites (star): saved on the server per member, copy kept in this browser for speed ---- */
+window.Watchlist = (function () {
+  var KEY = 'scope_favs', set = {}, subs = [];
+  try { JSON.parse(localStorage.getItem(KEY) || '[]').forEach(function (s) { set[s] = 1; }); } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(Object.keys(set))); } catch (e) {} }
+  function fire() { subs.forEach(function (f) { try { f(); } catch (e) {} }); }
+  function paint() {
+    [].forEach.call(document.querySelectorAll('.star[data-sym]'), function (b) {
+      var on = !!set[b.dataset.sym]; b.classList.toggle('on', on); b.textContent = on ? '★' : '☆';
+      b.title = on ? 'Remove from favourites' : 'Add to favourites';
+    });
   }
-  function starBtn(sym){
-    const on = has(sym);
-    return '<button type="button" class="btn sm wl-btn" data-sym="'+sym+'" title="Watchlist" style="margin-left:8px">'+(on?'★':'☆')+' Watch</button>';
+  function sync() {
+    return fetch('/api/favs', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      set = {}; (d.symbols || []).forEach(function (s) { set[s] = 1; }); save(); paint(); fire();
+    }).catch(function () {});
   }
-  document.addEventListener('click', function(e){
-    const b = e.target.closest('.wl-btn');
-    if(!b) return;
-    e.preventDefault();
-    const on = toggle(b.dataset.sym);
-    b.innerHTML = (on?'★':'☆') + ' Watch';
-    if(window.toast) toast(on ? 'Added to watchlist' : 'Removed from watchlist');
+  function toggle(sym) {
+    var on = !set[sym]; if (on) set[sym] = 1; else delete set[sym];
+    save(); paint(); fire();
+    return fetch('/api/fav', { method: 'POST', credentials: 'same-origin', body: JSON.stringify({ symbol: sym, on: on }) }).catch(function () {});
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.star[data-sym]');
+    if (b) { e.preventDefault(); toggle(b.dataset.sym); }
   });
-  return { all, has, toggle, starBtn };
+  document.addEventListener('DOMContentLoaded', function () { if (document.getElementById('side')) sync(); });
+  return {
+    has: function (s) { return !!set[s]; }, list: function () { return Object.keys(set); }, toggle: toggle, sync: sync,
+    onChange: function (f) { subs.push(f); },
+    starBtn: function (sym) {
+      var on = !!set[sym], q = String(sym).replace(/[^A-Za-z0-9&._-]/g, '');
+      return '<button class="star' + (on ? ' on' : '') + '" data-sym="' + q + '" title="' + (on ? 'Remove from favourites' : 'Add to favourites') + '">' + (on ? '★' : '☆') + '</button>';
+    }
+  };
 })();

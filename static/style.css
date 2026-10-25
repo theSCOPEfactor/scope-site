@@ -472,3 +472,7 @@ html[data-mode=light] .brand .typer{color:var(--typer)}
 .qj li em{font-style:normal;color:var(--mut);font-size:12px}
 .qj li.none{color:var(--mut);cursor:default}
 .qj .qh{padding:8px 14px;border-top:1px solid var(--stroke);color:var(--mut);font-size:12px}
+/* favourites star */
+.star{background:none;border:0;color:var(--mut);font-size:24px;line-height:1;cursor:pointer;vertical-align:middle;padding:0 4px;transition:transform .15s,color .15s}
+.star:hover{transform:scale(1.2);color:var(--gold)}
+.star.on{color:var(--gold);text-shadow:0 0 12px rgba(245,192,74,.5)}

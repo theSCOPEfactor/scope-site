@@ -175,3 +175,52 @@ def cron_step(state, opt, today):
                         + f"\n\n{zone_of(A['spot'], L)}\nPuro reading mate bot ne pharithi levels moklo." + tag)
             st["snap"] = snapshot(A)
     return msgs, state
+
+
+# ---------------------------------------------------------------- favourites digest + weekly review (text)
+def fav_digest(syms, stocks, updated, near=2.0):
+    """Favourite stocks: je level (VLOW / Point / VHIGH) ni najik hoy te upar, baaki niche. Daily (end-of-day) data."""
+    by = {s.get("symbol"): s for s in stocks or []}
+    hits, rest = [], []
+    for sym in syms or []:
+        s = by.get(sym)
+        if not s or s.get("price") is None:
+            continue
+        p, best = s["price"], None
+        for name, key in (("VLOW", "vlow"), ("Point", "point"), ("VHIGH", "vhigh")):
+            v = s.get(key)
+            if v:
+                d = (p / v - 1) * 100
+                if best is None or abs(d) < abs(best[2]):
+                    best = (name, v, d)
+        item = (sym, p, s.get("chg"), best)
+        (hits if best and abs(best[2]) <= near else rest).append(item)
+    if not hits and not rest:
+        return None
+    chg = lambda c: "" if c is None else f" ({c:+.1f}%)"
+    lines = [f"Favourites | data: {updated}", ""]
+    if hits:
+        lines.append(f"Level ni najik ({near:g}% ma):")
+        for sym, p, c, b in sorted(hits, key=lambda x: abs(x[3][2])):
+            lines.append(f"- {sym} {f1(p)}{chg(c)}: {b[0]} {f1(b[1])} thi {abs(b[2]):.1f}% {'upar' if b[2] > 0 else 'niche'}")
+    else:
+        lines.append(f"Koi favourite level ni {near:g}% ma nathi.")
+    if rest:
+        lines += ["", "Baaki: " + ", ".join(f"{sym} {f1(p)}{chg(c)}" for sym, p, c, b in rest[:15])
+                  + (f" +{len(rest) - 15} vadhu" if len(rest) > 15 else "")]
+    lines += ["", "Aa roj na (end-of-day) levels par aadharit che. Salah nathi."]
+    return "\n".join(lines)
+
+
+def review_text(r):
+    a, b = (r.get("range") or ["", ""])
+    if not r.get("n"):
+        return f"Journal review ({a} thi {b}): aa week ma koi trade close nathi thayo."
+    inr = lambda v: ("-" if v < 0 else "") + "Rs " + format(abs(int(round(v))), ",")
+    lines = [f"Journal review ({a} thi {b})",
+             f"Trades {r['n']} | Win rate {r['win_rate']}% ({r['wins']}W / {r['losses']}L) | Net {inr(r['net'])}",
+             f"Avg win {inr(r['avg_win'])} | Avg loss {inr(abs(r['avg_loss']))} | Per trade {inr(r['expectancy'])} | Charges {inr(r['charges'])}",
+             f"Best: {r['best']['symbol']} {inr(r['best']['net'])} | Worst: {r['worst']['symbol']} {inr(r['worst']['net'])}"]
+    if r.get("tips"):
+        lines += ["", "Su kahe che:"] + ["- " + t for t in r["tips"][:4]]
+    return "\n".join(lines)
