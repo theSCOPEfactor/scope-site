@@ -1,0 +1,37 @@
+name: SCOPE FRVP comparison (read-only)
+
+on:
+  push:
+    branches:
+      - frvp/angelone-scope-test
+  workflow_dispatch:
+    inputs:
+      profile_date:
+        description: "Trading date to compare, in YYYY-MM-DD format"
+        required: true
+        default: "2026-10-23"
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout selected test branch
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Angel One and data dependencies
+        run: pip install smartapi-python pyotp logzero websocket-client pandas numpy requests
+      - name: Compare historical IRCTC FRVP
+        env:
+          ANGEL_API_KEY: ${{ secrets.ANGEL_API_KEY }}
+          ANGEL_CLIENT_CODE: ${{ secrets.ANGEL_CLIENT_CODE }}
+          ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
+          ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
+          PROFILE_DATE: ${{ inputs.profile_date || '2026-10-23' }}
+        run: python job/scope_frvp_test.py
