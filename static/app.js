@@ -128,7 +128,7 @@ window.ZONENAME = function (z) { return (window.NEUTRAL_NAMES && z) ? z.replace(
 window.ScopeLadder = (function () {
   var f2 = function (n) { return n == null ? '-' : Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
   function levelsOf(s) {
-    var F = s.fib || {}, R = s.vhigh - s.vlow;
+    var R = s.vhigh - s.vlow, F = s.fib || {target1: s.vlow + R * 1.272, sell_reversal: s.vlow + R * .75, buy_reversal: s.vlow + R * .25};
     var deep = function (m) { var v = s.vlow - m * R; return v > 0 ? v : null; };
     return [
       {k:'d1', name:LVNAME('d1'), v:deep(0.272), c:'#38bdf8'},
@@ -181,8 +181,52 @@ window.ScopeLadder = (function () {
       el.addEventListener('mouseleave', function () { set(el.dataset.k, false); });
     });
   }
-  return {levelsOf: levelsOf, html: html, bind: bind};
+  /* ---- toggle panel: sets = [{label, d:{vlow,vhigh,point,(fib)}, note, empty}] ; Today / 52 Week ---- */
+  var PANELS = {}, uid = 0;
+  function nextOf(s) {
+    var L = levelsOf(s), up = null, dn = null;
+    L.forEach(function (x) {
+      if (x.v > s.price && (!up || x.v < up.v)) up = x;
+      if (x.v < s.price && (!dn || x.v > dn.v)) dn = x;
+    });
+    var one = function (t, x) {
+      return '<div class="stat"><small>' + t + '</small><b>' + (x ? (x.mag ? MAGNET(15) : x.name) + ' ' + f2(x.v) + ' <span class="mut">(' + ((x.v / s.price - 1) * 100).toFixed(1) + '%)</span>' : '-') + '</b></div>';
+    };
+    return '<div class="stats" style="margin-top:14px">' + one('Next level above', up) + one('Next level below', dn) + '</div>';
+  }
+  function body(id) {
+    var P = PANELS[id], st = P.sets[P.cur];
+    if (!st.d || st.d.vlow == null || st.d.vhigh == null) return '<p class="mut">' + (st.empty || 'Not available yet.') + '</p>';
+    var s = {price: P.price, vlow: st.d.vlow, vhigh: st.d.vhigh, point: st.d.point, fib: st.d.fib};
+    return html(s) + nextOf(s) + (st.note ? '<p class="note">' + st.note + '</p>' : '');
+  }
+  function panel(sets, price) {
+    var id = 'lp' + (++uid), cur = 0;
+    for (var i = 0; i < sets.length; i++) { if (sets[i].d && sets[i].d.vlow != null) { cur = i; break; } }
+    PANELS[id] = {sets: sets, price: price, cur: cur};
+    return '<div class="lpanel" id="' + id + '"><div class="seg lpseg">' + sets.map(function (x, i) {
+      return '<button type="button" data-i="' + i + '"' + (i === cur ? ' class="on"' : '') + '>' + x.label + '</button>';
+    }).join('') + '</div><div class="lpbody">' + body(id) + '</div></div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.lpseg button');
+    if (!b) return;
+    var box = b.closest('.lpanel'), P = PANELS[box.id]; if (!P) return;
+    P.cur = +b.dataset.i;
+    [].forEach.call(box.querySelectorAll('.lpseg button'), function (x) { x.classList.toggle('on', x === b); });
+    var bd = box.querySelector('.lpbody'); bd.innerHTML = body(box.id); bind(bd);
+  });
+  return {levelsOf: levelsOf, html: html, bind: bind, panel: panel};
 })();
+
+/* live badge: green "Live 14:45" when the price is from today, grey otherwise */
+window.liveBadge = function (ts) {
+  if (!ts) return '';
+  var d = String(ts).slice(0, 10), t = String(ts).slice(11, 16), today = '';
+  try { today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); } catch (e) {}
+  return d === today ? '<span class="livetag on" title="Price refreshed about every 15 minutes in market hours">● Live ' + t + '</span>'
+    : '<span class="livetag" title="Last price update">Last price ' + d.slice(8) + '/' + d.slice(5, 7) + ' ' + t + '</span>';
+};
 
 /* ---- favourites (star): saved on the server per member, copy kept in this browser for speed ---- */
 window.Watchlist = (function () {

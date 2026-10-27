@@ -47,6 +47,7 @@ function hist(h){
   return rows?`<div class="card"><h2>What happened here before</h2><div class="wrap"><table><thead><tr><th class="l">When price was</th><th>Times</th><th>Avg change after 3 days</th><th>Up after 3 days</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="note">Last year of this stock only, so the number of times is small. It describes the past, it does not predict the next day. See the Backtest page for all stocks together.</p></div>`:'';
 }
+const todayIST=()=>{try{return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(e){return ''}};
 function render(r){
   const s=r.stock, det=r.detail||{}, pg=$('page');
   if(!s){
@@ -68,7 +69,10 @@ function render(r){
   </div><p class="note">${win?'Only the last ~30 days of data are used for this stock, so 52-week levels, Stage and RS are not calculated.':'This stock is too new for 52-week levels, Stage or RS, so none are calculated.'} ${s.live_ts?'Live data as of '+esc(String(s.live_ts).slice(0,16))+' (refreshed about every 15 minutes in market hours).':''}</p></div>`:'';
   const lvlCard=isNew
     ?(mkI?`<div class="card"><h2>Intraday levels <span class="mut" style="font-size:13px;font-weight:400">· ${esc(I.date)} session only</span></h2>${ScopeLadder.html(mkI)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div><p class="note">Made from today's candles only, so use them for intraday, not for longer decisions.</p></div>`:'')
-    :(s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.html(s)}<div class="stats" style="margin-top:14px">${row('Next level above',lv(nl.up))}${row('Next level below',lv(nl.dn))}</div></div>`:'');
+    :(s.point!=null?`<div class="card"><h2>Key levels</h2>${ScopeLadder.panel([
+        {label:'Today',d:s.day,empty:'Today levels are made for the ~400 most traded stocks only. Use the 52 Week tab for this stock.',
+         note:s.day?(s.day.date===todayIST()?'Today’s session':'Last session ('+esc(s.day.date)+')')+' · built from 5-minute candles of that one day. Use them for intraday, the 52 Week levels for the bigger picture.':''},
+        {label:'52 Week',d:s,note:'Built from the last year of trading.'}],s.price)}</div>`:'');
   const fund=[
     ['Market cap',det.mcap_cr!=null?'₹'+fx(det.mcap_cr)+' Cr':'-'],['P/E',fx(det.pe)],['P/B',fx(det.pb)],['ROE',fx(det.roe,'%')],['Debt / Equity',fx(det.de)],
     ['Dividend yield',fx(det.div_yield,'%')],['EPS (₹)',fx(det.eps)],['Revenue growth',fx(det.rev_growth,'%')],['Earnings growth',fx(det.earn_growth,'%')],['Profit margin',fx(det.margin,'%')],['Insider holding',fx(det.insiders,'%')]
@@ -108,7 +112,7 @@ function render(r){
     <div class="row"><a class="btn sm" href="/compare">Compare →</a></div>
   </div>
   <div class="card"><div class="stats">
-    ${row('Price','₹'+f2(s.price))}
+    ${row('Price','₹'+f2(s.price)+(s.lts?liveBadge(s.lts):''))}
     ${row('Change',`<span class="${s.chg>=0?'pos':'neg'}">${s.chg>=0?'+':''}${s.chg}%</span>`)}
     ${row('Stage',s.stage?`<span class="tag s${s.stage}">Stage ${s.stage}</span>`:'<span class="tag">New</span>')}
     ${row('RS',s.rs??'-')}

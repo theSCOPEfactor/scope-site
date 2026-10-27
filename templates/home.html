@@ -14,7 +14,7 @@
 
 <div class="card">
   <div class="row" style="justify-content:space-between;margin-bottom:10px">
-    <h2 style="margin:0">Indices</h2>
+    <h2 style="margin:0">Indices <span id="idxlive"></span></h2>
     <div class="seg2" id="mode"><button data-m="day" class="on">Today</button><button data-m="w52">52 Week</button></div>
   </div>
   <div class="wrap"><table><thead><tr><th class="l">Index</th><th>Price</th><th>Chg %</th><th>VLOW</th><th id="mgh"></th><th>VHIGH</th><th>Range</th></tr></thead>
@@ -69,16 +69,26 @@ const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:
 let D={stocks:[],indices:[]}, mode='day';
 $('mgh').innerHTML=MAGNET(18); $('h_mg').innerHTML=MAGNET(18)+' <span style="vertical-align:4px;margin-left:4px">Near the magnet</span> <span class="mut" id="c_mg"></span>';
 
+function idxCells(price,chg,l){
+  if(!l) return `<td>${f2(price)}</td><td class="${chg>=0?'pos':'neg'}">${chg>=0?'+':''}${chg??'-'}</td><td colspan="4" class="mut">no levels</td>`;
+  const p=l.vhigh>l.vlow?Math.max(-4,Math.min(104,(price-l.vlow)/(l.vhigh-l.vlow)*100)):50;
+  return `<td>${f2(price)}</td><td class="${chg>=0?'pos':'neg'}">${chg>=0?'+':''}${chg??'-'}</td>
+    <td>${f2(l.vlow)}</td><td>${f2(l.point)}</td><td>${f2(l.vhigh)}</td><td><span class="rb"><i style="left:${p}%"></i></span></td>`}
 function drawIdx(){
+  let lts=null;
   $('idx').innerHTML=D.indices.map(x=>{
-    const l=x[mode];
-    if(!l) return `<tr class="idx" data-n="${x.symbol}"><td class="l"><b>${x.symbol}</b> <span class="mut">›</span></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg}</td><td colspan="4" class="mut">no data</td></tr>`;
-    const p=l.vhigh>l.vlow?Math.max(-4,Math.min(104,(x.price-l.vlow)/(l.vhigh-l.vlow)*100)):50;
-    return `<tr class="idx" data-n="${x.symbol}"><td class="l"><b>${x.symbol}</b> <span class="mut">›</span></td><td>${f2(x.price)}</td><td class="${x.chg>=0?'pos':'neg'}">${x.chg>=0?'+':''}${x.chg}</td>
-      <td>${f2(l.vlow)}</td><td>${f2(l.point)}</td><td>${f2(l.vhigh)}</td><td><span class="rb"><i style="left:${p}%"></i></span></td></tr>`}).join('')
+    lts=lts||x.lts;
+    let h=`<tr class="idx" data-n="${x.symbol}"><td class="l"><b>${x.symbol}</b> <span class="mut">›</span></td>${idxCells(x.price,x.chg,x[mode])}</tr>`;
+    if(x.fut&&x.fut.price!=null){
+      const bs=x.fut.basis;
+      h+=`<tr class="idx futrow" data-n="${x.symbol}"><td class="l">↳ Future <span class="mut">${esc2(x.fut.contract||'')}${bs!=null?' · basis '+(bs>=0?'+':'')+f2(bs):''}</span></td>${idxCells(x.fut.price,x.fut.chg,x.fut[mode])}</tr>`;
+    }
+    return h}).join('')
     ||'<tr><td colspan="7" class="empty">Index levels appear after the next daily update.</td></tr>';
-  $('idxnote').textContent=mode=='day'?'Click an index to see its stocks. Today = levels of today’s session. Index levels are based on time spent at each price, because indices have no traded volume.':'52 Week = levels built from the last year of trading.';
+  $('idxlive').innerHTML=liveBadge(lts);
+  $('idxnote').textContent=(mode=='day'?'Click an index to see its stocks and ladders. Today = levels of today’s session (last session when the market is closed). Index spot levels are based on time spent at each price, because indices have no traded volume; futures levels use real volume.':'52 Week = levels built from the last year of trading. For futures it is the available history of the current contract only, so a freshly rolled contract has less history.')+' Prices refresh about every 15 minutes in market hours.';
 }
+const esc2=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 $('idx').onclick=e=>{const tr=e.target.closest('tr[data-n]'); if(tr) location.href='/index/'+encodeURIComponent(tr.dataset.n)};
 $('mode').onclick=e=>{const b=e.target.closest('button'); if(!b) return; mode=b.dataset.m;
   [...$('mode').children].forEach(x=>x.classList.toggle('on',x===b)); drawIdx()};

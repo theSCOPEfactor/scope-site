@@ -1,72 +1,36 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="pagehead">
-  <div>
-    <h1 id="ttl">{{ name }}</h1>
-    <p class="sub" id="sub">Index analysis · data updated {{ updated }}</p>
+<div class="pagehead"><div><h1 id="ttl">{{ name }}</h1><p class="sub" id="sub">Stocks in this index · data updated {{ updated }}</p></div>
+  <div class="row"><a class="btn sm" href="/">← All indices</a></div></div>
+<div class="card" id="lv"></div>
+<div class="card"><div class="stats" id="stats"></div></div>
+<div class="card">
+  <div class="filters">
+    <label class="fld">Search<input id="s" placeholder="symbol"></label>
+    <div class="fld">Show<div class="seg" id="seg"><button data-v="" class="on">All</button><button data-v="2">Stage 2</button><button data-v="lo">Near VLOW</button><button data-v="hi">Near VHIGH</button></div></div>
   </div>
-  <div class="row"><a class="btn sm" href="/">← All indices</a></div>
-</div>
-
-<div class="seg2" id="tabs" style="margin-bottom:16px">
-  <button data-tab="analysis" class="on">Analysis</button>
-  <button data-tab="stocks">Stocks in Index</button>
-</div>
-
-<div id="tab-analysis">
-  <div class="card" id="price-card" style="display:none"><div class="stats" id="price-stats"></div></div>
-  <div class="card" id="ladder-card" style="display:none"><h2>52-Week Levels</h2><div id="ladder-box"></div></div>
-  <div class="card" id="day-card" style="display:none"><h2>Today’s Levels</h2><div class="stats" id="day-stats"></div></div>
-  <div class="card" id="summary-card" style="display:none">
-    <h2>Scope summary</h2>
-    <ul class="sum" id="summary-list"></ul>
-    <p class="note">Written automatically from the numbers above using fixed rules. It describes the chart, it is not advice to buy or sell.</p>
-  </div>
-</div>
-
-<div id="tab-stocks" style="display:none">
-  <div class="card"><div class="stats" id="stats"></div></div>
-  <div class="card">
-    <div class="filters">
-      <label class="fld">Search<input id="s" placeholder="symbol"></label>
-      <div class="fld">Show
-        <div class="seg" id="seg">
-          <button data-v="" class="on">All</button>
-          <button data-v="2">Stage 2</button>
-          <button data-v="lo">Near VLOW</button>
-          <button data-v="hi">Near VHIGH</button>
-        </div>
-      </div>
-    </div>
-    <div class="mut" id="count" style="margin-bottom:6px"></div>
-    <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
-    <p class="note" id="note"></p>
-  </div>
+  <div class="mut" id="count" style="margin-bottom:6px"></div>
+  <div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="note" id="note"></p>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>const NAME={{ name|tojson }};</script>
 {% raw %}
 <script>
 const $=id=>document.getElementById(id);
 const f2=n=>n==null?'-':Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc2=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const todayIST=()=>{try{return new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(e){return ''}};
 let M=[], sortK='rs', sortD=-1, flt='';
-
-$('tabs').onclick=e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  [...$('tabs').children].forEach(x=>x.classList.toggle('on',x===b));
-  const tab=b.dataset.tab;
-  $('tab-analysis').style.display=tab==='analysis'?'':'none';
-  $('tab-stocks').style.display=tab==='stocks'?'':'none';
-};
-
 const cols=[['symbol','Stock','l'],['price','Price'],['chg','Chg %'],['rs','RS'],['stage','Stage'],['zone','Zone','l'],['vlow','VLOW'],['point',MAGNET(17)],['vhigh','VHIGH'],['pos','Range']];
 $('head').innerHTML=cols.map(c=>`<th class="sort ${c[2]||''}" data-k="${c[0]}">${c[1]}</th>`).join('');
 $('head').onclick=e=>{const k=e.target.closest('th')?.dataset.k; if(k){sortD=sortK==k?-sortD:-1; sortK=k; draw()}};
 $('seg').onclick=e=>{const b=e.target.closest('button'); if(!b) return; flt=b.dataset.v; [...$('seg').children].forEach(x=>x.classList.toggle('on',x===b)); draw()};
 $('s').oninput=draw;
-
+function box(t,l){ if(!l) return `<div class="stat"><small>${t}</small><b class="mut">-</b></div>`;
+  return `<div class="stat"><small>${t}</small><b>${f2(l.vlow)} · ${MAGNET(15)} ${f2(l.point)} · ${f2(l.vhigh)}</b></div>`}
 function draw(){
   const t=$('s').value.trim().toUpperCase();
   let L=M.filter(x=>(!t||x.symbol.includes(t))&&(flt==''||(flt=='2'?x.stage==2:flt=='lo'?(x.point!=null&&x.price/x.vlow-1<=.03):(x.point!=null&&1-x.price/x.vhigh<=.03&&x.price<=x.vhigh*1.0001))));
@@ -79,63 +43,32 @@ function draw(){
     <td><span class="rb"><i style="left:${Math.max(-4,Math.min(104,(x.pos??.5)*100))}%"></i></span></td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches.</td></tr>';
 }
 $('rows').onclick=e=>{const tr=e.target.closest('tr[data-s]'); if(tr) location.href='/stock/'+encodeURIComponent(tr.dataset.s)};
-
-function toStockLike(i){
-  if(!i||!i.w52) return null;
-  const w=i.w52, R=w.vhigh-w.vlow;
-  return {
-    symbol: i.symbol||NAME, price: i.price, chg: i.chg,
-    point: w.point, vhigh: w.vhigh, vlow: w.vlow,
-    fib: { buy_reversal: w.vlow+R*0.236, sell_reversal: w.vlow+R*0.786, target1: w.vhigh+R*0.272 }
-  };
-}
-function indexSummary(i,s){
-  const out=[];
-  if(i.chg!=null) out.push(`Today the index is ${i.chg>=0?'up':'down'} ${Math.abs(i.chg)}%.`);
-  if(s&&s.point!=null){
-    const dm=(s.price/s.point-1)*100;
-    out.push(`Price is ${Math.abs(dm).toFixed(1)}% ${dm>=0?'above':'below'} the 52-week magnet level.`);
-    out.push(`${((s.vhigh/s.price-1)*100).toFixed(1)}% from VHIGH and ${((s.price/s.vlow-1)*100).toFixed(1)}% from VLOW.`);
-  }
-  if(i.day){
-    const d=i.day;
-    if(d.vhigh&&(1-i.price/d.vhigh)<=0.005) out.push('Trading near today’s VHIGH (intraday sell zone).');
-    else if(d.vlow&&(i.price/d.vlow-1)<=0.005) out.push('Trading near today’s VLOW (intraday buy zone).');
-  }
-  return out;
-}
-const row=(k,v)=>`<div class="stat"><small>${k}</small><b>${v}</b></div>`;
-
 fetch('/api/index?name='+encodeURIComponent(NAME)).then(r=>r.json()).then(r=>{
   const i=r.index;
-  if(i){
-    $('ttl').innerHTML=`${esc(NAME)} <span class="${i.chg>=0?'pos':'neg'}" style="font-size:16px;margin-left:8px">${f2(i.price)} · ${i.chg>=0?'+':''}${i.chg}%</span>`;
-    $('price-card').style.display='';
-    $('price-stats').innerHTML=row('Price',f2(i.price))+row('Change',`<span class="${i.chg>=0?'pos':'neg'}">${i.chg>=0?'+':''}${i.chg}%</span>`);
-    const s=toStockLike(i);
-    if(s&&s.point!=null){
-      $('ladder-card').style.display='';
-      $('ladder-box').innerHTML=ScopeLadder.html(s);
-      ScopeLadder.bind($('ladder-box'));
+  if(i){ $('ttl').innerHTML=`${NAME} <span class="${i.chg>=0?'pos':'neg'}" style="font-size:16px;margin-left:8px">${f2(i.price)} · ${i.chg>=0?'+':''}${i.chg}%</span>${i.lts?liveBadge(i.lts):''}`;
+    const F=i.fut, ds=x=>x?(x.date===todayIST()?'Today’s session':'Last session ('+x.date+')'):'';
+    const sp=`<h2>Spot · ${NAME}</h2>${ScopeLadder.panel([
+      {label:'Today',d:i.day,empty:'Today levels appear after the market opens.',note:ds(i.day)+' · built from 5-minute candles. Indices have no traded volume, so levels use time spent at each price.'},
+      {label:'52 Week',d:i.w52,empty:'52 week levels appear after the next daily update.',note:'Built from the last year of trading (time based).'}],i.price)}`;
+    let fu='';
+    if(F&&F.price!=null){
+      const bs=F.basis;
+      fu=`<h2>Future · ${esc2(F.contract||'')} <span class="${F.chg>=0?'pos':'neg'}" style="font-size:14px;margin-left:6px">${f2(F.price)} · ${F.chg>=0?'+':''}${F.chg??'-'}%</span>${F.lts?liveBadge(F.lts):''}</h2>
+      <p class="mut" style="margin:-4px 0 12px">Expiry ${esc2(F.expiry||'-')}${bs!=null?' · Basis (future − spot) <b>'+(bs>=0?'+':'')+f2(bs)+'</b>':''}${F.oi?' · OI '+Number(F.oi).toLocaleString('en-IN'):''}</p>
+      ${ScopeLadder.panel([
+        {label:'Today',d:F.day,empty:'Today levels appear after the market opens.',note:ds(F.day)+' · built from 5-minute candles with real traded volume.'},
+        {label:'52 Week',d:F.w52,empty:'Not available yet.',note:F.since?'Built from the available history of this contract (since '+esc2(F.since)+', '+(F.days||'?')+' trading days). Expired contracts cannot be fetched, so this is not a full year.':''}],F.price)}`;
     }
-    if(i.day){
-      const d=i.day;
-      $('day-card').style.display='';
-      $('day-stats').innerHTML=row('VLOW',f2(d.vlow))+row('Magnet',f2(d.point))+row('VHIGH',f2(d.vhigh))+row('Day high',f2(d.hi))+row('Day low',f2(d.lo));
-    }
-    const sum=indexSummary(i,s);
-    if(sum.length){ $('summary-card').style.display=''; $('summary-list').innerHTML=sum.map(x=>`<li>${esc(x)}</li>`).join(''); }
-  }
-  if(!r.found){
-    $('tab-stocks').innerHTML='<div class="card"><h2>Stocks of this index</h2><p class="mut">The list of stocks in this index is not available yet.</p></div>';
-    return;
-  }
+    $('lv').innerHTML=fu?`<div class="twoc"><div>${sp}</div><div>${fu}</div></div>`:sp;
+    ScopeLadder.bind($('lv'));
+  } else $('lv').style.display='none';
+  if(!r.found){ $('stats').parentElement.style.display='none'; document.querySelector('.card:last-of-type').innerHTML='<h2>Stocks of this index</h2><p class="mut">The list of stocks in this index is not available yet. It is collected by the daily “Scope Details” update; run it once from GitHub Actions and refresh.</p>'; return }
   M=r.members; M.forEach(x=>x.pos=x.vhigh>x.vlow?(x.price-x.vlow)/(x.vhigh-x.vlow):.5);
   const up=M.filter(x=>x.chg>0).length, dn=M.filter(x=>x.chg<0).length, s2=M.filter(x=>x.stage==2).length, rs=M.filter(x=>x.rs!=null);
-  const it=[['Stocks',r.total],['Advancing',up],['Declining',dn],['In Stage 2',s2],['Avg RS',rs.length?rs.reduce((a,x)=>a+x.rs,0)/rs.length:0]];
+  const it=[['Stocks',r.total,''],['Advancing',up,''],['Declining',dn,''],['In Stage 2',s2,''],['Avg RS',rs.length?rs.reduce((a,x)=>a+x.rs,0)/rs.length:0,'']];
   $('stats').innerHTML=it.map((x,k)=>`<div class="stat"><small>${x[0]}</small><b id="m${k}">0</b></div>`).join('');
   it.forEach((x,k)=>animateNum($('m'+k),x[1],v=>Math.round(v).toLocaleString('en-IN')));
-  $('note').textContent=r.missing?`${r.missing} of ${r.total} stocks are not in the scanned data.`:'“Near” means within 3%. Click a stock for full details.';
+  $('note').textContent=r.missing?`${r.missing} of ${r.total} stocks are not in the scanned data (for example very new or low-volume listings), so they are not shown. “Near” means within 3%. Click a stock for its full details.`:'“Near” means within 3%. Click a stock for its full details.';
   draw();
 });
 </script>

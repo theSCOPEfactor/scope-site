@@ -214,18 +214,20 @@ def get_details():
 
 
 _nmem = {"t": 0, "data": None}
+_lmem = {"t": 0, "data": None}
 _gmem = {"key": None, "data": None}
 
 
-def get_new():
-    """new.json = navi listing (IPO) no live/intraday data (GitHub, har ~15 min). Never raises."""
-    if _nmem["data"] is not None and time.time() - _nmem["t"] < 300:
-        return _nmem["data"]
-    data, cache, local = None, os.path.join(BASE, "new_cache.json"), os.path.join(BASE, "new.json")
+def _gh_json(name, mem, ttl, empty):
+    """GitHub repo ni json file (cache sathe). Never raises."""
+    if mem["data"] is not None and time.time() - mem["t"] < ttl:
+        return mem["data"]
+    stem = name.rsplit(".", 1)[0]
+    data, cache, local = None, os.path.join(BASE, stem + "_cache.json"), os.path.join(BASE, name)
     tok, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPO")
     if tok and repo:
         try:
-            r = requests.get(f"https://api.github.com/repos/{repo}/contents/new.json",
+            r = requests.get(f"https://api.github.com/repos/{repo}/contents/{name}",
                              headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github.raw"}, timeout=20)
             if r.ok:
                 data = _clean(json.loads(r.text))
@@ -242,22 +244,96 @@ def get_new():
                 except Exception:
                     pass
     if data is None:
-        data = {"updated": None, "stocks": []}
-    _nmem.update(t=time.time(), data=data)
+        data = empty
+    mem.update(t=time.time(), data=data)
     return data
 
 
+def get_new():
+    """new.json = navi listing (IPO) no live/intraday data (GitHub, har ~15 min). Never raises."""
+    return _gh_json("new.json", _nmem, 300, {"updated": None, "stocks": []})
+
+
+def get_live():
+    """live.json = badha stocks/indices/futures no live price (GitHub, har ~15 min). Never raises."""
+    return _gh_json("live.json", _lmem, 120, {"updated": None, "stocks": {}, "indices": []})
+
+
+def _zone_of(price, f):
+    if not f:
+        return None
+    if price > f["breakout"]:
+        return "Above VHIGH"
+    if price < f["breakdown"]:
+        return "Below VLOW"
+    if price >= f["sell_reversal"]:
+        return "Near VHIGH (sell zone)"
+    if price <= f["buy_reversal"]:
+        return "Near VLOW (buy zone)"
+    return "Inside range"
+
+
+def _merge_index(base_ix, live_ix, futs, lts):
+    """Index row = daily levels + live price; futures joined (basis = future - spot)."""
+    r = dict(base_ix)
+    lv = live_ix or {}
+    if lv.get("price") is not None:
+        r["price"] = lv["price"]
+        if lv.get("chg") is not None:
+            r["chg"] = lv["chg"]
+        r["lts"] = lts
+    ld = lv.get("day")
+    if ld and (not r.get("day") or ld.get("date", "") >= r["day"].get("date", "")):
+        r["day"] = ld
+    fb = futs.get(base_ix["symbol"])
+    fl = lv.get("fut")
+    if fb or fl:
+        f = dict(fb or {})
+        f.pop("token", None); f.pop("exch", None)
+        if fl:
+            for k in ("contract", "expiry"):
+                if fl.get(k):
+                    f[k] = fl[k]
+            if fl.get("price") is not None:
+                f["price"] = fl["price"]; f["chg"] = fl.get("chg", f.get("chg")); f["lts"] = lts
+            if fl.get("oi"):
+                f["oi"] = fl["oi"]
+            fd = fl.get("day")
+            if fd and (not f.get("day") or fd.get("date", "") >= f["day"].get("date", "")):
+                f["day"] = fd
+        if f.get("price") is not None and r.get("price") is not None:
+            f["basis"] = round(f["price"] - r["price"], 2)
+        r["fut"] = f
+    return r
+
+
 def get_data():
-    """Daily data.json + live new-listing rows (new.json). New symbols are added, known ones get fresher price."""
+    """Daily data.json + live prices (live.json) + live new-listing rows (new.json)."""
     base = _get_base_data()
-    nw = get_new()
+    nw, lv = get_new(), get_live()
     rows = nw.get("stocks") or []
-    if not rows:
+    lstocks = lv.get("stocks") or {}
+    use_live = bool(lv.get("updated")) and (lstocks or lv.get("indices")) and str(lv["updated"]) >= str(base.get("updated") or "")
+    if not rows and not use_live and not base.get("futures"):
         return base
-    key = (id(base), nw.get("updated"))
+    key = (id(base), nw.get("updated"), lv.get("updated") if use_live else None)
     if _gmem["key"] == key:
         return _gmem["data"]
     stocks = list(base.get("stocks", []))
+    if use_live:
+        for i, s in enumerate(stocks):
+            v = lstocks.get(s["symbol"])
+            if v and v[0]:
+                b = dict(s)
+                b["price"] = v[0]
+                if v[1] is not None:
+                    b["chg"] = v[1]
+                b["lts"] = lv["updated"]
+                if b.get("fib"):
+                    b["zone"] = _zone_of(b["price"], b["fib"]) or b.get("zone")
+                if b.get("hi52"):
+                    b["from_hi"] = round((b["price"] / b["hi52"] - 1) * 100, 1)
+                stocks[i] = b
     idx = {x["symbol"]: i for i, x in enumerate(stocks)}
     for r in rows:
         i = idx.get(r["symbol"])
@@ -269,7 +345,18 @@ def get_data():
                 if r.get(k) is not None:
                     b[k] = r[k]
             stocks[i] = b
-    merged = dict(base); merged["stocks"] = stocks; merged["new_updated"] = nw.get("updated")
+    merged = dict(base); merged["stocks"] = stocks
+    if rows:
+        merged["new_updated"] = nw.get("updated")
+    if use_live:
+        futs = {f["index"]: f for f in base.get("futures", [])}
+        lix = {x["symbol"]: x for x in lv.get("indices", [])}
+        merged["indices"] = [_merge_index(x, lix.get(x["symbol"]), futs, lv["updated"]) for x in base.get("indices", [])]
+        merged["live_updated"] = lv["updated"]
+    else:
+        futs = {f["index"]: f for f in base.get("futures", [])}
+        if futs:
+            merged["indices"] = [_merge_index(x, None, futs, None) for x in base.get("indices", [])]
     _gmem.update(key=key, data=merged)
     return merged
 
@@ -466,7 +553,7 @@ def tg_cron(secret):
     if not want or not hmac.compare_digest(secret, want):
         abort(404)
     if not owner:
-        return "idle"
+        return "idle (TG_CHAT_ID is not set in the WSGI file)"
     task = request.args.get("task", "auto")
     if task in ("eod", "weekly"):
         msgs = []
@@ -480,14 +567,17 @@ def tg_cron(secret):
                     msgs.append(t)
             else:
                 msgs.append(zones.review_text(review_data("week")))
+            res = []
             for t in msgs:
-                _tg_send(owner, t)
+                r = _tg_send(owner, t)
+                res.append(str(r.status_code) + ("" if r.status_code == 200 else " " + r.text[:150]))
+            return f"task={task}: sent {len(msgs)}" + (f" (telegram: {', '.join(res)})" if res else " (nothing to send: no favourites found in the data)")
         except Exception as e:
             print("tg_cron task error:", e)
-        return f"sent {len(msgs)}"
+            return f"task={task}: ERROR {type(e).__name__}: {str(e)[:200]}"
     now = acct.now_ist()
     if now.weekday() >= 5 or not (9 <= now.hour < 16):
-        return "idle"
+        return "idle (market closed; the automatic alert runs Mon-Fri 9:00-16:00 IST)"
     today = now.date().isoformat()
     _opmem["t"] = 0                          # taaje taaru options.json lavo
     opt = get_options()
@@ -496,13 +586,16 @@ def tg_cron(secret):
     if not any(v.get("date") == today for k, v in st.items() if not k.startswith("_")) and st.get("_nudge") != today:
         msgs.append("Aaj na Low/High haji nathi malya. Moklo: NIFTY 22406 22545 22480 (naam, Low, High, POC)")
         st["_nudge"] = today
+    res = []
     for t in msgs:
         try:
-            _tg_send(owner, t)
+            r = _tg_send(owner, t)
+            res.append(str(r.status_code) + ("" if r.status_code == 200 else " " + r.text[:150]))
         except Exception as e:
             print("tg_cron send error:", e)
+            res.append("error " + str(e)[:100])
     _tg_save(st)
-    return f"sent {len(msgs)}"
+    return f"sent {len(msgs)}" + (f" (telegram: {', '.join(res)})" if res else "")
 
 
 @app.route("/settings")
