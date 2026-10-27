@@ -26,8 +26,17 @@ LOOKBACK_DAYS = 360   # ONE_HOUR candle ni limit 400 divas che
 SLEEP = 0.45          # Angel rate limit (~3/sec) thi nichu rahevu
 
 
+_MASTER = {}
+
+
+def get_master():
+    if "rows" not in _MASTER:
+        _MASTER["rows"] = requests.get(SCRIP_URL, timeout=180).json()
+    return _MASTER["rows"]
+
+
 def load_universe():
-    rows = requests.get(SCRIP_URL, timeout=120).json()
+    rows = get_master()
     out = []
     for r in rows:
         if r.get("exch_seg") == "NSE" and str(r.get("symbol", "")).endswith("-EQ"):
@@ -61,10 +70,10 @@ def login():
     return api
 
 
-def fetch_hourly(api, token, retries=4, interval="ONE_HOUR", days=LOOKBACK_DAYS):
+def fetch_hourly(api, token, retries=4, interval="ONE_HOUR", days=LOOKBACK_DAYS, exch="NSE"):
     now = dt.datetime.now()
     frm = now - dt.timedelta(days=days)
-    params = {"exchange": "NSE", "symboltoken": token, "interval": interval,
+    params = {"exchange": exch, "symboltoken": token, "interval": interval,
               "fromdate": frm.strftime("%Y-%m-%d 09:15"), "todate": now.strftime("%Y-%m-%d %H:%M")}
     for i in range(retries):
         try:
@@ -126,6 +135,63 @@ def fib_levels(vlow, vhigh):
             "breakout": f(1), "target1": f(1.272)}
 
 
+def _norm(x):
+    return "".join(ch for ch in str(x).lower() if ch.isalnum())
+
+
+# index (site naam, normalised) -> (futures "name" in master, futures exchange)
+FUT_INDICES = {"nifty50": ("NIFTY", "NFO"), "niftybank": ("BANKNIFTY", "NFO"),
+               "niftyfinservice": ("FINNIFTY", "NFO"), "niftymidselect": ("MIDCPNIFTY", "NFO"),
+               "niftynext50": ("NIFTYNXT50", "NFO"), "sensex": ("SENSEX", "BFO"), "bankex": ("BANKEX", "BFO")}
+
+
+def pick_future(master, label, today=None):
+    """Index (site naam) -> nazdik no FUTIDX contract {symbol, token, expiry, exch, name} athva None."""
+    m = FUT_INDICES.get(_norm(label))
+    if not m:
+        return None
+    name, exch = m
+    today = today or dt.date.today()
+    best = None
+    for r in master:
+        if r.get("exch_seg") != exch or r.get("name") != name or r.get("instrumenttype") != "FUTIDX":
+            continue
+        try:
+            e = dt.datetime.strptime(str(r["expiry"]).title(), "%d%b%Y").date()
+        except Exception:
+            continue
+        if e < today:
+            continue
+        if best is None or e < best[0]:
+            best = (e, r)
+    if not best:
+        return None
+    r = best[1]
+    return {"symbol": r["symbol"], "token": r["token"], "expiry": str(r["expiry"]).title(), "exch": exch, "name": name}
+
+
+def day_levels(m5, bins=40, min_bars=6):
+    """5-min candles -> chhela session na levels {date, open, hi, lo, point, vhigh, vlow} (athva None)."""
+    if m5 is None or len(m5) == 0:
+        return None
+    m5 = m5.sort_values("ts").drop_duplicates("ts")
+    t = m5["ts"].dt.time
+    m5 = m5[(t >= dt.time(9, 15)) & (t <= dt.time(15, 30))]
+    if len(m5) == 0:
+        return None
+    last = m5["ts"].dt.date.max()
+    d = m5[m5["ts"].dt.date == last]
+    if len(d) < min_bars:
+        return None
+    p = volume_profile(d, bins=bins)
+    if not p:
+        return None
+    out = {"date": str(last), "open": round(float(d["o"].iloc[0]), 2),
+           "hi": round(float(d["h"].max()), 2), "lo": round(float(d["l"].min()), 2)}
+    out.update({k: round(v, 2) for k, v in p.items()})
+    return out
+
+
 def to_daily(h1):
     d = h1.copy()
     d["date"] = d["ts"].dt.date
@@ -169,8 +235,9 @@ def ret(c, days):
 
 
 def index_row(api, u):
-    """Ek index: 52W levels (1h) + aaj na divas na levels (5 min)."""
-    h1 = fetch_hourly(api, u["token"]); time.sleep(SLEEP)
+    """Ek index: 52W levels (1h) + chhela session na levels (5 min). u["exch"] default NSE."""
+    ex = u.get("exch", "NSE")
+    h1 = fetch_hourly(api, u["token"], exch=ex); time.sleep(SLEEP)
     if h1 is None or len(h1) < 5:
         return None
     daily = to_daily(h1)
@@ -181,15 +248,31 @@ def index_row(api, u):
     if prof:
         row["w52"] = {k: round(v, 2) for k, v in prof.items()}
         row["w52"]["hi"] = round(float(h1["h"].max()), 2); row["w52"]["lo"] = round(float(h1["l"].min()), 2)
-    m5 = fetch_hourly(api, u["token"], interval="FIVE_MINUTE", days=4); time.sleep(SLEEP)
-    if m5 is not None and len(m5) >= 5:
-        last = m5["ts"].dt.date.max()
-        d = m5[m5["ts"].dt.date == last]
-        dp = volume_profile(d, bins=40) if len(d) >= 5 else None
-        if dp:
-            row["day"] = {k: round(v, 2) for k, v in dp.items()}
-            row["day"]["hi"] = round(float(d["h"].max()), 2); row["day"]["lo"] = round(float(d["l"].min()), 2)
-            row["day"]["date"] = str(last)
+    m5 = fetch_hourly(api, u["token"], interval="FIVE_MINUTE", days=5, exch=ex); time.sleep(SLEEP)
+    dl = day_levels(m5, min_bars=5)
+    if dl:
+        row["day"] = dl
+    return row
+
+
+def future_row(api, label, fut):
+    """Index na futures contract: price + 52W (contract ni available history) + chhela session na levels."""
+    h1 = fetch_hourly(api, fut["token"], exch=fut["exch"]); time.sleep(SLEEP)
+    if h1 is None or len(h1) < 5:
+        return None
+    daily = to_daily(h1)
+    c = daily["c"]
+    price = float(c.iloc[-1]); prev = float(c.iloc[-2]) if len(c) > 1 else price
+    row = {"index": label, "contract": fut["symbol"], "expiry": fut["expiry"], "token": fut["token"], "exch": fut["exch"],
+           "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "since": str(daily.index[0]), "days": int(len(daily))}
+    prof = volume_profile(h1)
+    if prof:
+        row["w52"] = {k: round(v, 2) for k, v in prof.items()}
+        row["w52"]["hi"] = round(float(h1["h"].max()), 2); row["w52"]["lo"] = round(float(h1["l"].min()), 2)
+    m5 = fetch_hourly(api, fut["token"], interval="FIVE_MINUTE", days=5, exch=fut["exch"]); time.sleep(SLEEP)
+    dl = day_levels(m5, min_bars=5)
+    if dl:
+        row["day"] = dl
     return row
 
 
@@ -201,7 +284,9 @@ def main():
     print("Universe:", len(uni))
     api = login()
     indices = []
-    for u in idx[:60]:
+    if not any(_norm(u["symbol"]) == "sensex" for u in idx):
+        idx = idx + [{"symbol": "SENSEX", "token": "99919000", "exch": "BSE"}]
+    for u in idx[:61]:
         try:
             r = index_row(api, u)
             if r:
@@ -209,6 +294,22 @@ def main():
         except Exception as e:
             print("index fail", u["symbol"], e)
     print("Indices:", len(indices))
+    futures = []
+    try:
+        master = get_master()
+        for ix in indices:
+            fut = pick_future(master, ix["symbol"])
+            if not fut:
+                continue
+            try:
+                fr = future_row(api, ix["symbol"], fut)
+                if fr:
+                    futures.append(fr)
+            except Exception as e:
+                print("future fail", ix["symbol"], e)
+    except Exception as e:
+        print("futures skipped", e)
+    print("Futures:", [f["contract"] for f in futures])
     t0 = time.time()
     rows, fails = [], 0
     for i, u in enumerate(uni, 1):
@@ -258,6 +359,22 @@ def main():
         if i % 100 == 0:
             print(f"{i}/{len(uni)} done, ok={len(rows)} fail={fails}, {int((time.time() - t0) / 60)} min", flush=True)
 
+    # Stocks na "Today" (chhela session) levels: top-N liquid stocks (5-min candle, 1 request / stock)
+    topn = int(os.environ.get("DAY_TOP", "400"))
+    tokmap = {u["symbol"]: u["token"] for u in uni}
+    cand = sorted([r for r in rows if r.get("point") is not None],
+                  key=lambda r: -(r["price"] * (r.get("avg_vol") or 0)))[:topn]
+    nd = 0
+    for r in cand:
+        try:
+            m5 = fetch_hourly(api, tokmap[r["symbol"]], interval="FIVE_MINUTE", days=5); time.sleep(SLEEP)
+            dl = day_levels(m5)
+            if dl:
+                r["day"] = dl; nd += 1
+        except Exception as e:
+            print("day fail", r["symbol"], e)
+    print("Stock day levels:", nd, "of", len(cand))
+
     # RS percentile (1-99)
     s = pd.Series({r["symbol"]: r["rs_raw"] for r in rows if r["rs_raw"] is not None})
     pct = (s.rank(pct=True) * 98 + 1).round(0)
@@ -275,7 +392,7 @@ def main():
         return o
 
     ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)      # show India time
-    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "stocks": rows}
+    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "futures": futures, "stocks": rows}
     with open("data.json", "w") as f:
         json.dump(clean(out), f, separators=(",", ":"), allow_nan=False)
     print("Saved data.json:", len(rows), "stocks, failed:", fails)
