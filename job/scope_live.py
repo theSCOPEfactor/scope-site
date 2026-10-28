@@ -10,6 +10,10 @@ Secrets: ANGEL_API_KEY, ANGEL_CLIENT_CODE, ANGEL_PASSWORD, ANGEL_TOTP_SECRET
 """
 import os, sys, json, time, datetime as dt
 
+DEADLINE_SEC = int(os.environ.get("LIVE_DEADLINE", "330"))      # ~5.5 min pachhi je male te save kari ne puru
+BATCH = 50
+SLEEP_Q = 1.05
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "live.json")
@@ -35,26 +39,28 @@ def parse_quote(q):
     return [round(p, 2), round(chg, 2) if chg is not None else None, int(num(q.get("tradeVolume")) or 0)]
 
 
-def build(data, master, quotes_fn, candles_fn, today=None):
-    """Pure-ish: quotes_fn(exch, tokens)->{token: quote}, candles_fn(exch, token)->5-min df. Returns live dict."""
+def quote_once(api, exch, tokens):
+    """FULL quote (1 retry) -> {token: row}."""
+    for attempt in range(2):
+        try:
+            res = api.getMarketData("FULL", {exch: [str(t) for t in tokens]})
+            if isinstance(res, dict) and res.get("status") and res.get("data"):
+                return {str(q.get("symbolToken")): q for q in res["data"].get("fetched", [])}
+            print("quote retry", exch, (res or {}).get("message") if isinstance(res, dict) else res, flush=True)
+        except Exception as e:
+            print("quote error", exch, str(e)[:120], flush=True)
+        time.sleep(2)
+    return {}
+
+
+def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_q=0):
+    """quotes_fn(exch, tokens)->{token: quote}, candles_fn(exch, token)->5-min df.
+    Pehla indices+futures (nana), pachhi stocks (vadhu traded pehla). deadline (time.time()) vati jaay to je male te aape."""
     from scope_daily import pick_future, day_levels, _norm
     today = today or dt.date.today()
     out = {"stocks": {}, "indices": []}
 
-    # stocks: symbol -> NSE EQ token
-    eq = {}
-    for r in master:
-        if r.get("exch_seg") == "NSE" and str(r.get("symbol", "")).endswith("-EQ"):
-            eq.setdefault(r["name"], r["token"])
-    want = [s["symbol"] for s in data.get("stocks", []) if s["symbol"] in eq]
-    tok2sym = {eq[s]: s for s in want}
-    q = quotes_fn("NSE", [eq[s] for s in want])
-    for t, row in q.items():
-        v = parse_quote(row)
-        if v and t in tok2sym:
-            out["stocks"][tok2sym[t]] = v
-
-    # indices spot (+ futures)
+    # ---- indices spot (+ futures) - pehla
     spot_tok = {}
     for r in master:
         if r.get("exch_seg") == "NSE" and (r.get("instrumenttype") == "AMXIDX" or str(r.get("token", "")).startswith("99926")):
@@ -95,13 +101,40 @@ def build(data, master, quotes_fn, candles_fn, today=None):
             row["fut"] = f
         if "price" in row or "fut" in row:
             out["indices"].append(row)
+        if deadline and time.time() > deadline:
+            print("deadline (indices)", flush=True)
+            return out
+    print("indices done:", len(out["indices"]), flush=True)
+
+    # ---- stocks: symbol -> NSE EQ token, vadhu traded pehla
+    eq = {}
+    for r in master:
+        if r.get("exch_seg") == "NSE" and str(r.get("symbol", "")).endswith("-EQ"):
+            eq.setdefault(r["name"], r["token"])
+    rows = [s for s in data.get("stocks", []) if s["symbol"] in eq]
+    rows.sort(key=lambda s: -((s.get("price") or 0) * (s.get("avg_vol") or 0)))
+    tok2sym = {eq[s["symbol"]]: s["symbol"] for s in rows}
+    toks = [eq[s["symbol"]] for s in rows]
+    nb = (len(toks) + BATCH - 1) // BATCH
+    for bi in range(nb):
+        if deadline and time.time() > deadline:
+            print(f"deadline: {bi}/{nb} batches done", flush=True)
+            break
+        q = quotes_fn("NSE", toks[bi * BATCH:(bi + 1) * BATCH])
+        for t, row in q.items():
+            v = parse_quote(row)
+            if v and t in tok2sym:
+                out["stocks"][tok2sym[t]] = v
+        if bi % 10 == 0:
+            print(f"stocks batch {bi + 1}/{nb}, got {len(out['stocks'])}", flush=True)
+        if sleep_q:
+            time.sleep(sleep_q)
     return out
 
 
 def main():
     import requests
     import scope_daily as sd
-    from scope_options import quote
     master = sd.get_master()
     data = {}
     try:
@@ -109,17 +142,19 @@ def main():
             data = json.load(f)
     except Exception as e:
         print("data.json nathi:", e); sys.exit(0)
+    print("master:", len(master), "stocks in data.json:", len(data.get("stocks", [])), flush=True)
     api = sd.login()
+    print("login ok", flush=True)
 
     def quotes_fn(exch, tokens):
-        return quote(api, exch, tokens)
+        return quote_once(api, exch, tokens)
 
     def candles_fn(exch, token):
         df = sd.fetch_hourly(api, token, interval="FIVE_MINUTE", days=5, exch=exch)
         time.sleep(sd.SLEEP)
         return df
 
-    out = build(data, master, quotes_fn, candles_fn)
+    out = build(data, master, quotes_fn, candles_fn, deadline=time.time() + DEADLINE_SEC, sleep_q=SLEEP_Q)
     if len(out["stocks"]) < 50 and not out["indices"]:
         print("quotes aavya nathi - live.json badlyu nahi"); return
     ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)
