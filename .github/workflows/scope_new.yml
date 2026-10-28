@@ -7,7 +7,7 @@ on:
         description: "Extra symbols (comma separated), e.g. ABCLTD,XYZLTD"
         default: ""
   schedule:
-    - cron: "*/15 3-10 * * 1-5"   # market hours (9:15 AM - 4 PM IST)
+    - cron: "5,35 3-10 * * 1-5"   # market hours (9:15 AM - 4 PM IST)
 
 permissions:
   contents: write
@@ -34,14 +34,6 @@ jobs:
           ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
           EXTRA_SYMBOLS: ${{ github.event.inputs.symbols }}
         run: python job/scope_new.py
-      - name: Run live price job
-        continue-on-error: true
-        env:
-          ANGEL_API_KEY: ${{ secrets.ANGEL_API_KEY }}
-          ANGEL_CLIENT_CODE: ${{ secrets.ANGEL_CLIENT_CODE }}
-          ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
-          ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
-        run: python job/scope_live.py
       - name: Commit new.json
         run: |
           git config user.name "scope-bot"
