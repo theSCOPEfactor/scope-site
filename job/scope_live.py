@@ -60,31 +60,40 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
     today = today or dt.date.today()
     out = {"stocks": {}, "indices": []}
 
-    # ---- indices spot (+ futures) - pehla
+    # ---- indices spot (+ futures) - pehla. Quotes batch ma (1-2 call), candles fakat futures vala index mate
     spot_tok = {}
     for r in master:
         if r.get("exch_seg") == "NSE" and (r.get("instrumenttype") == "AMXIDX" or str(r.get("token", "")).startswith("99926")):
-            spot_tok.setdefault(str(r.get("symbol")), (r["token"], "NSE"))
+            spot_tok.setdefault(str(r.get("symbol")), (str(r["token"]), "NSE"))
     spot_tok.setdefault("SENSEX", ("99919000", "BSE"))
+    items = []                       # (name, (token, exch), fut-or-None)
     for ix in data.get("indices", []):
         name = ix["symbol"]
         st = spot_tok.get(name) or next((v for k, v in spot_tok.items() if _norm(k) == _norm(name)), None)
-        if not st:
-            continue
+        if st:
+            items.append((name, st, pick_future(master, name, today)))
+    by_ex = {}
+    for name, st, fut in items:
+        by_ex.setdefault(st[1], []).append(st[0])
+        if fut:
+            by_ex.setdefault(fut["exch"], []).append(str(fut["token"]))
+    Q = {}
+    for ex, toks in by_ex.items():
+        for i in range(0, len(toks), BATCH):
+            for t, row in quotes_fn(ex, toks[i:i + BATCH]).items():
+                Q[(ex, t)] = row
+            if sleep_q:
+                time.sleep(sleep_q)
+    print("index quotes:", len(Q), "items:", len(items), flush=True)
+    for name, st, fut in items:
         row = {"symbol": name}
-        sq = quotes_fn(st[1], [st[0]]).get(str(st[0]))
+        sq = Q.get((st[1], st[0]))
         v = parse_quote(sq) if sq else None
         if v:
             row["price"], row["chg"] = v[0], v[1]
-        try:
-            dl = day_levels(candles_fn(st[1], st[0]), min_bars=5)
-            if dl:
-                row["day"] = dl
-        except Exception as e:
-            print("index candles fail", name, e)
-        fut = pick_future(master, name, today)
+        f = None
         if fut:
-            fq = quotes_fn(fut["exch"], [fut["token"]]).get(str(fut["token"]))
+            fq = Q.get((fut["exch"], str(fut["token"])))
             fv = parse_quote(fq) if fq else None
             f = {"contract": fut["symbol"], "expiry": fut["expiry"]}
             if fv:
@@ -92,18 +101,17 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
                 oi = num((fq or {}).get("opnInterest"))
                 if oi:
                     f["oi"] = int(oi)
-            try:
-                fd = day_levels(candles_fn(fut["exch"], fut["token"]), min_bars=5)
-                if fd:
-                    f["day"] = fd
-            except Exception as e:
-                print("future candles fail", name, e)
             row["fut"] = f
+        if fut and not (deadline and time.time() > deadline):      # 5-min candles: fakat futures vala index
+            for tgt, ex, tk, lab in ((row, st[1], st[0], "index"), (f, fut["exch"], fut["token"], "future")):
+                try:
+                    dl = day_levels(candles_fn(ex, tk), min_bars=5)
+                    if dl:
+                        tgt["day"] = dl
+                except Exception as e:
+                    print(lab, "candles fail", name, str(e)[:100], flush=True)
         if "price" in row or "fut" in row:
             out["indices"].append(row)
-        if deadline and time.time() > deadline:
-            print("deadline (indices)", flush=True)
-            return out
     print("indices done:", len(out["indices"]), flush=True)
 
     # ---- stocks: symbol -> NSE EQ token, vadhu traded pehla
@@ -150,7 +158,7 @@ def main():
         return quote_once(api, exch, tokens)
 
     def candles_fn(exch, token):
-        df = sd.fetch_hourly(api, token, interval="FIVE_MINUTE", days=5, exch=exch)
+        df = sd.fetch_hourly(api, token, retries=2, interval="FIVE_MINUTE", days=5, exch=exch)
         time.sleep(sd.SLEEP)
         return df
 
