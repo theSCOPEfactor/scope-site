@@ -51,6 +51,47 @@ def get_master():
     return _MASTER["rows"]
 
 
+IND_URLS = ["https://www.niftyindices.com/IndexConstituent/ind_niftytotalmarket_list.csv",
+            "https://archives.nseindia.com/content/indices/ind_niftytotalmarket_list.csv",
+            "https://www.niftyindices.com/IndexConstituent/ind_nifty500list.csv",
+            "https://archives.nseindia.com/content/indices/ind_nifty500list.csv"]
+
+
+def load_industry():
+    """NSE industry (Nifty Total Market / Nifty 500 list). Na malе to khali dict, baki badhu chale."""
+    import io
+    hdr = {"User-Agent": "Mozilla/5.0"}
+    for url in IND_URLS:
+        try:
+            r = requests.get(url, headers=hdr, timeout=40)
+            if not r.ok:
+                continue
+            df = pd.read_csv(io.StringIO(r.text))
+            df.columns = [c.strip() for c in df.columns]
+            m = {str(a).strip(): str(b).strip() for a, b in zip(df["Symbol"], df["Industry"])}
+            if len(m) > 100:
+                print("Industry list:", url, len(m)); return m
+        except Exception as e:
+            print("industry fail", url, e)
+    print("Industry list not available")
+    return load_manual_industry()
+
+
+def load_manual_industry():
+    """Fallback: industry_map.csv (symbol,industry) in repo root, if the NSE lists cannot be downloaded."""
+    import csv
+    m = {}
+    if os.path.exists("industry_map.csv"):
+        with open("industry_map.csv", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                sym = (row.get("symbol") or row.get("Symbol") or "").strip()
+                ind = (row.get("industry") or row.get("Industry") or "").strip()
+                if sym and ind:
+                    m[sym] = ind
+        print("industry_map.csv:", len(m))
+    return m
+
+
 def load_universe():
     rows = get_master()
     out = []
@@ -245,6 +286,11 @@ def days_in_stage2(stage):
     return n
 
 
+def pct1(x):
+    """0.1234 -> 12.3 (percent), nan -> None"""
+    return None if x is None or np.isnan(x) else round(float(x) * 100, 1)
+
+
 def ret(c, days):
     if len(c) <= days:
         return np.nan
@@ -322,6 +368,8 @@ def main():
         uni = uni[:mx]
     print("Universe:", len(uni))
     api = login()
+    industry = load_industry()
+    bn, b2, b50, b200 = None, None, None, None      # market breadth (date -> counts)
     indices = []
     if not any(_norm(u["symbol"]) == "sensex" for u in idx):
         idx = idx + [{"symbol": "SENSEX", "token": "99919000", "exch": "BSE"}]
@@ -363,6 +411,16 @@ def main():
         stage, s50, s150, s200, hi52, lo52 = stage_series(daily)
         c = daily["c"]
         price = float(c.iloc[-1]); prev = float(c.iloc[-2]) if len(c) > 1 else price
+        valid = s200.notna()                                 # breadth counters (Market health)
+        parts = [valid.astype(int), (stage == 2).astype(int), ((c > s50) & s50.notna()).astype(int), ((c > s200) & valid).astype(int)]
+        if bn is None:
+            bn, b2, b50, b200 = parts
+        else:
+            bn, b2, b50, b200 = [a.add(b, fill_value=0) for a, b in zip((bn, b2, b50, b200), parts)]
+        nS2 = days_in_stage2(stage)
+        prior = int(stage.values[-nS2 - 1]) if 0 < nS2 < len(stage) else None
+        vx = float(daily["v"].tail(5).max() / daily["v"].tail(50).mean()) if daily["v"].tail(50).mean() > 0 else None
+        base_bo = bool(0 < nS2 <= 10 and prior == 1 and vx is not None and vx >= 1.5)
         r3, r6, r9, r12 = ret(c, 63), ret(c, 126), ret(c, 189), ret(c, 250)
         rs_raw = np.nansum([0.4 * r3, 0.2 * r6, 0.2 * r9, 0.2 * r12]) if not np.isnan(r3) else np.nan
         row = {
@@ -374,12 +432,15 @@ def main():
             "hi52": round(float(hi52.iloc[-1]), 2), "lo52": round(float(lo52.iloc[-1]), 2),
             "from_hi": round((price / float(hi52.iloc[-1]) - 1) * 100, 1),
             "listed_days": int(len(daily)),
-            "stage": int(stage.iloc[-1]), "days_s2": days_in_stage2(stage),
+            "stage": int(stage.iloc[-1]), "days_s2": nS2,
+            "industry": industry.get(u["symbol"]), "prior_stage": prior,
+            "vol_x": None if vx is None else round(vx, 2), "base_bo": base_bo,
             "rs_raw": None if np.isnan(rs_raw) else float(rs_raw),
             "avg_vol": int(daily["v"].tail(20).mean()),
             "new": bool(len(daily) < 200),      # navi listing: Stage/RS mate pura divas nathi
             "bars": int(len(daily)),
             "ohlc": ohlc_blocks(daily),
+            "r1w": pct1(ret(c, 5)), "r1m": pct1(ret(c, 21)), "r3m": pct1(r3), "r6m": pct1(r6), "r1y": pct1(r12),
         }
         if prof:
             row.update({k: round(v, 2) for k, v in prof.items()})
@@ -430,8 +491,18 @@ def main():
             return [clean(v) for v in o]
         return o
 
+    breadth = []
+    if bn is not None:
+        for d in list(bn.index)[-150:]:
+            n = float(bn.get(d, 0))
+            if n > 0 and n >= 0.5 * float(bn.max()):
+                breadth.append({"d": str(d), "n": int(n), "s2": round(float(b2.get(d, 0)) / n * 100, 1),
+                                "a50": round(float(b50.get(d, 0)) / n * 100, 1),
+                                "a200": round(float(b200.get(d, 0)) / n * 100, 1)})
+    print("Industry matched:", sum(1 for r in rows if r.get("industry")), "of", len(rows))
+
     ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)      # show India time
-    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "futures": futures, "stocks": rows}
+    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "futures": futures, "breadth": breadth, "stocks": rows}
     with open("data.json", "w") as f:
         json.dump(clean(out), f, separators=(",", ":"), allow_nan=False)
     print("Saved data.json:", len(rows), "stocks, failed:", fails)
