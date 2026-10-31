@@ -1,0 +1,34 @@
+name: Scope Events (results, news, corporate actions)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mon-Fri 06:30 IST (01:00 UTC)
+    - cron: "0 1 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scope-events
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install feedparser requests
+      - name: Run job
+        run: python job/scope_events.py
+      - name: Commit events.json
+        run: |
+          git config user.name "scope-bot"
+          git config user.email "scope-bot@users.noreply.github.com"
+          git add events.json
+          git commit -m "events update" || echo "no changes"
+          for i in 1 2 3; do git pull --rebase && git push && break || sleep 5; done
