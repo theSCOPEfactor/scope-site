@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 import requests
 import pyotp
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from SmartApi import SmartConnect
 
 SCRIP_URL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
@@ -24,6 +26,20 @@ BINS = 100            # volume profile rows
 VALUE_AREA = 0.70     # 70% value area
 LOOKBACK_DAYS = 360   # ONE_HOUR candle ni limit 400 divas che
 SLEEP = 0.45          # Angel rate limit (~3/sec) thi nichu rahevu
+WORKERS = int(os.environ.get("WORKERS", "3"))          # ek sathe ketla requests
+MIN_GAP = float(os.environ.get("MIN_GAP", "0.40"))     # be request vache ochhu ketlo samay (badha workers mali ne)
+_gate = threading.Lock()
+_next_ok = [0.0]
+
+
+def _throttle():
+    """badha threads mali ne ~2.5 request/sec thi vadhu nahi (Angel limit ~3/sec)"""
+    with _gate:
+        now = time.monotonic()
+        wait = _next_ok[0] - now
+        _next_ok[0] = max(now, _next_ok[0]) + MIN_GAP
+    if wait > 0:
+        time.sleep(wait)
 
 
 _MASTER = {}
@@ -77,6 +93,7 @@ def fetch_hourly(api, token, retries=4, interval="ONE_HOUR", days=LOOKBACK_DAYS,
               "fromdate": frm.strftime("%Y-%m-%d 09:15"), "todate": now.strftime("%Y-%m-%d %H:%M")}
     for i in range(retries):
         try:
+            _throttle()
             res = api.getCandleData(params)
             if isinstance(res, dict):
                 data = res.get("data")
@@ -312,9 +329,8 @@ def main():
     print("Futures:", [f["contract"] for f in futures])
     t0 = time.time()
     rows, fails = [], 0
-    for i, u in enumerate(uni, 1):
-        h1 = fetch_hourly(api, u["token"])
-        time.sleep(SLEEP)
+    pool = ThreadPoolExecutor(max_workers=WORKERS)
+    for i, (u, h1) in enumerate(zip(uni, pool.map(lambda x: fetch_hourly(api, x["token"]), uni)), 1):
         if h1 is None or len(h1) < 5:      # navi IPO pan chalse (ochha candles)
             fails += 1
             continue
@@ -365,9 +381,9 @@ def main():
     cand = sorted([r for r in rows if r.get("point") is not None],
                   key=lambda r: -(r["price"] * (r.get("avg_vol") or 0)))[:topn]
     nd = 0
-    for r in cand:
+    m5s = pool.map(lambda r: fetch_hourly(api, tokmap[r["symbol"]], interval="FIVE_MINUTE", days=5), cand)
+    for r, m5 in zip(cand, m5s):
         try:
-            m5 = fetch_hourly(api, tokmap[r["symbol"]], interval="FIVE_MINUTE", days=5); time.sleep(SLEEP)
             dl = day_levels(m5)
             if dl:
                 r["day"] = dl; nd += 1
