@@ -11,10 +11,10 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: "auto = market alert | eod = favourites digest | weekly = journal review"
+        description: "auto = market alert | eod = favourites digest | weekly = journal review | plan = today's profit plan | excel = levels backup"
         default: "auto"
         type: choice
-        options: [auto, eod, weekly]
+        options: [auto, eod, weekly, plan, excel]
 
 permissions:
   contents: read
