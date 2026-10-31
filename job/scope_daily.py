@@ -251,6 +251,27 @@ def ret(c, days):
     return c.iloc[-1] / c.iloc[-1 - days] - 1
 
 
+def ohlc_blocks(daily):
+    """to_daily() ma thi: chhelli session nu O/H/L/C (+prev close, volume) ane 52 week nu O/H/L/C (tarikh sathe). Extra API call nathi."""
+    try:
+        n = len(daily)
+        if n < 1:
+            return None
+        r = lambda v: round(float(v), 2)
+        last = daily.iloc[-1]
+        d = {"date": str(daily.index[-1]), "o": r(last["o"]), "h": r(last["h"]), "l": r(last["l"]), "c": r(last["c"]),
+             "v": int(last["v"]) if last["v"] == last["v"] else 0}
+        if n > 1:
+            d["pc"] = r(daily["c"].iloc[-2])
+        w = daily.tail(252)
+        wk = {"from": str(w.index[0]), "o": r(w["o"].iloc[0]), "h": r(w["h"].max()), "hd": str(w["h"].idxmax()),
+              "l": r(w["l"].min()), "ld": str(w["l"].idxmin()), "c": r(w["c"].iloc[-1]), "days": int(len(w))}
+        return {"d": d, "w": wk}
+    except Exception as e:
+        print("ohlc fail", e)
+        return None
+
+
 def index_row(api, u):
     """Ek index: 52W levels (1h) + chhela session na levels (5 min). u["exch"] default NSE."""
     ex = u.get("exch", "NSE")
@@ -260,7 +281,7 @@ def index_row(api, u):
     daily = to_daily(h1)
     c = daily["c"]
     price = float(c.iloc[-1]); prev = float(c.iloc[-2]) if len(c) > 1 else price
-    row = {"symbol": u["symbol"], "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2)}
+    row = {"symbol": u["symbol"], "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "ohlc": ohlc_blocks(daily)}
     prof = volume_profile(h1)
     if prof:
         row["w52"] = {k: round(v, 2) for k, v in prof.items()}
@@ -281,7 +302,8 @@ def future_row(api, label, fut):
     c = daily["c"]
     price = float(c.iloc[-1]); prev = float(c.iloc[-2]) if len(c) > 1 else price
     row = {"index": label, "contract": fut["symbol"], "expiry": fut["expiry"], "token": fut["token"], "exch": fut["exch"],
-           "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "since": str(daily.index[0]), "days": int(len(daily))}
+           "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "since": str(daily.index[0]), "days": int(len(daily)),
+           "ohlc": ohlc_blocks(daily)}
     prof = volume_profile(h1)
     if prof:
         row["w52"] = {k: round(v, 2) for k, v in prof.items()}
@@ -357,6 +379,7 @@ def main():
             "avg_vol": int(daily["v"].tail(20).mean()),
             "new": bool(len(daily) < 200),      # navi listing: Stage/RS mate pura divas nathi
             "bars": int(len(daily)),
+            "ohlc": ohlc_blocks(daily),
         }
         if prof:
             row.update({k: round(v, 2) for k, v in prof.items()})
