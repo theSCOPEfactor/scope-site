@@ -190,7 +190,7 @@ def world_news():
             title = re.sub(r"\s+-\s+[^-]+$", "", e.get("title", "")).strip()
             if not title:
                 continue
-            out.append({"theme": theme, "title": title[:200], "src": (e.get("source") or {}).get("title", "Google News"),
+            out.append({"theme": theme, "tone": tone(title), "title": title[:200], "src": (e.get("source") or {}).get("title", "Google News"),
                         "url": e.get("link", ""), "date": dt.datetime(*pub[:6]).strftime("%Y-%m-%d") if pub else ""})
             n += 1
             if n >= 3:
