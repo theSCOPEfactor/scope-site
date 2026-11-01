@@ -157,7 +157,12 @@ def analyze(m15):
     return days, levels
 
 
+PATH_DAYS = 120
+
+
 def summarize(days, tag):
+    keep = {d["date"] for d in days[-PATH_DAYS:]}
+    pmap = {d["date"]: d.get("path", []) for d in days if d["date"] in keep}
     groups = {}
     for d in days:
         groups.setdefault(d[tag]["key"], []).append(d)
@@ -180,8 +185,11 @@ def summarize(days, tag):
         if n >= 5:
             row["reach"] = {str(L): {"up": round(100 * np.mean([d["mx"] >= L for d in z])),
                                       "dn": round(100 * np.mean([d["mn"] <= L for d in z]))} for L in REACH}
+        row["all"] = [[d["date"], d["open"], d["gap"], d["up"], d["dn"], d["cl"], d[tag]["first"],
+                       int(d[tag]["rev_up"]), int(d[tag]["rev_dn"]), d["mx"], d["mn"]] for d in z]
         row["recent"] = [{"date": d["date"], "open": d["open"], "gap": d["gap"], "up": d["up"],
                           "dn": d["dn"], "cl": d["cl"], "first": d[tag]["first"], "path": d.get("path", [])} for d in z[-10:]][::-1]
+        row["paths"] = {d["date"]: pmap[d["date"]] for d in z if d["date"] in pmap}
         zones[key] = row
     base = {"n": len(days)}
     if days:
@@ -240,14 +248,54 @@ def fetch_all(api, exch, token, years):
     return pd.concat(parts).drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
 
 
+CANDLES = "openzone_candles.csv.gz"
+
+
+def load_saved():
+    if os.environ.get("FULL") == "1" or not os.path.exists(CANDLES):
+        return None
+    try:
+        df = pd.read_csv(CANDLES, parse_dates=["ts"])
+        return df if len(df) else None
+    except Exception as e:
+        print("saved candles read fail:", e)
+        return None
+
+
+def fetch_new(api, exch, token, since):
+    """Fakat since (chhelli saved date ni savar) thi aaj sudhi na navo candles."""
+    end = dt.datetime.now()
+    parts, cur = [], since
+    while cur < end:
+        nxt = min(cur + dt.timedelta(days=CHUNK_DAYS), end)
+        df = fetch_chunk(api, exch, token, cur, nxt); time.sleep(SLEEP)
+        if df is not None:
+            parts.append(df)
+        cur = nxt + dt.timedelta(days=1)
+    return pd.concat(parts) if parts else None
+
+
 def main():
     years = float(os.environ.get("YEARS", "3"))
     api = login()
+    saved = load_saved()
+    store = []
     out = {"updated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
            "indices": {}}
     for name, exch, token in INDICES:
         print("->", name)
-        m15 = fetch_all(api, exch, token, years)
+        old = saved[saved["name"] == name].drop(columns=["name"]) if saved is not None else None
+        if old is not None and len(old) > 200:
+            since = old["ts"].max().normalize()
+            new = fetch_new(api, exch, token, since)
+            print("  incremental from", since.date(), "new rows:", 0 if new is None else len(new))
+            m15 = pd.concat([old, new]) if new is not None else old
+            m15 = m15.drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
+        else:
+            m15 = fetch_all(api, exch, token, years)
+        if m15 is not None and len(m15):
+            m15 = m15[m15["ts"] >= pd.Timestamp(dt.datetime.now() - dt.timedelta(days=int(365 * years)))]
+            store.append(m15.assign(name=name))
         if m15 is None or len(m15) < 200:
             print("  data nathi:", name); continue
         days, levels = analyze(m15)
@@ -259,6 +307,9 @@ def main():
                                 "from": days[0]["date"] if days else None,
                                 "to": days[-1]["date"] if days else None}
         print("  days:", len(days), "latest levels:", {d: levels[d] for d in last[-2:]})
+    if store:
+        pd.concat(store)[["name", "ts", "o", "h", "l", "c", "v"]].to_csv(CANDLES, index=False, compression="gzip")
+        print("saved", CANDLES)
     with open("openzone.json", "w") as f:
         json.dump(out, f, separators=(",", ":"))
     print("saved openzone.json", list(out["indices"]))
