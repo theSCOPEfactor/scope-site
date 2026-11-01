@@ -29,6 +29,7 @@ INDICES = [("Nifty 50", "NSE", "99926000"),
 LVNAME = {-0.618: "Deep reversal 2", -0.272: "Deep reversal 1", 0: "VLOW", 0.25: "Lower reversal",
           0.75: "Upper reversal", 1: "VHIGH", 1.272: "Extension"}
 LADDER = sorted(LVNAME)
+REACH = LADDER + [1.618, 2.0]
 
 
 def zone_key(r, pr=None):
@@ -120,7 +121,8 @@ def analyze(m15):
         rec = {"date": str(d), "open": round(op, 2), "r": round(r, 3),
                "gap": round((op / prev_close - 1) * 100, 2),
                "up": round((hi / op - 1) * 100, 2), "dn": round((lo_ / op - 1) * 100, 2),
-               "cl": round((cl / op - 1) * 100, 2)}
+               "cl": round((cl / op - 1) * 100, 2),
+               "mx": round((hi - pr["vlow"]) / rng, 3), "mn": round((lo_ - pr["vlow"]) / rng, 3)}
         for tag, prr in (("p", pratio), ("n", None)):      # p = Point sathe, n = Point vagar
             lo, up = zone_key(r, prr)
             first, ru, rd = touch(g, pr["vlow"], rng, lo, up, cl)
@@ -148,6 +150,10 @@ def summarize(days, tag):
         row["rev_up"] = round(100 * np.mean([d[tag]["rev_up"] for d in fu])) if len(fu) >= 3 else None
         row["rev_dn"] = round(100 * np.mean([d[tag]["rev_dn"] for d in fd])) if len(fd) >= 3 else None
         row["n_up"], row["n_dn"] = len(fu), len(fd)
+        # chance that the day's high / low reaches each level (ratio of VLOW=0 .. VHIGH=1), only when enough days
+        if n >= 5:
+            row["reach"] = {str(L): {"up": round(100 * np.mean([d["mx"] >= L for d in z])),
+                                      "dn": round(100 * np.mean([d["mn"] <= L for d in z]))} for L in REACH}
         row["recent"] = [{"date": d["date"], "open": d["open"], "gap": d["gap"], "up": d["up"],
                           "dn": d["dn"], "cl": d["cl"], "first": d[tag]["first"]} for d in z[-8:]][::-1]
         zones[key] = row
