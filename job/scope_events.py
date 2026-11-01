@@ -57,6 +57,13 @@ def nse_json(s, path, params):
     return None
 
 
+def _f(x):
+    try:
+        return float(str(x).replace(",", ""))
+    except Exception:
+        return None
+
+
 def first(d, *keys):
     for k in keys:
         v = d.get(k)
@@ -85,7 +92,7 @@ def parse_dt(s):
 def nse_events(items, today):
     s = nse_session()
     # 1) board meetings / results
-    cal = nse_json(s, "event-calendar", {"index": "equities", "from_date": fmt(today), "to_date": fmt(today + dt.timedelta(days=7))})
+    cal = nse_json(s, "event-calendar", {"index": "equities", "from_date": fmt(today), "to_date": fmt(today + dt.timedelta(days=30))})
     n = 0
     for r in (cal if isinstance(cal, list) else (cal or {}).get("data", [])) or []:
         sym = first(r, "symbol")
@@ -232,18 +239,28 @@ def main():
         if k in seen:
             continue
         seen.add(k); out.append(it)
-    out = out[:500]
+    out = out[:900]
     world = []
     if not os.environ.get("SKIP_NEWS"):
         try:
             world = world_news()
         except Exception as e:
             print("world part failed:", e)
+    fiidii = []
+    try:
+        s2 = nse_session()
+        fj = nse_json(s2, "fiidiiTradeReact", {})
+        for r in (fj if isinstance(fj, list) else []):
+            fiidii.append({"cat": str(r.get("category", ""))[:20], "date": str(r.get("date", "")),
+                           "buy": _f(r.get("buyValue")), "sell": _f(r.get("sellValue")), "net": _f(r.get("netValue"))})
+        print("fii/dii rows:", len(fiidii))
+    except Exception as e:
+        print("fii/dii failed:", str(e)[:120])
     if not out and not world and os.path.exists("events.json"):
         print("nothing fetched: old events.json rakhyu")
         return
     with open("events.json", "w") as f:
-        json.dump({"updated": ist_now().strftime("%Y-%m-%d %H:%M"), "items": out, "world": world}, f, separators=(",", ":"), ensure_ascii=False)
+        json.dump({"updated": ist_now().strftime("%Y-%m-%d %H:%M"), "items": out, "world": world, "fiidii": fiidii}, f, separators=(",", ":"), ensure_ascii=False)
     print("Saved events.json:", len(out), "items,", len(world), "world headlines")
 
 
