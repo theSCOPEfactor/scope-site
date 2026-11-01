@@ -162,6 +162,44 @@ def google_news(items, symbols, names, today):
     print("news kept:", kept)
 
 
+WORLD_Q = {
+    "crude_up": "crude oil price Brent", "war": "Middle East OR Iran OR Ukraine OR Taiwan war escalation",
+    "fed_hawkish": "Federal Reserve interest rate inflation", "rupee_weak": "rupee dollar exchange rate",
+    "tariffs": "US tariffs India trade", "us_recession": "global stock markets sell-off recession fears",
+    "china": "China economy stimulus slowdown", "monsoon": "monsoon rainfall IMD", "rbi_cut": "RBI repo rate monetary policy",
+    "budget": "India government policy capex duty tax", "election": "election results polls", "gold_up": "gold price record",
+    "credit": "bank failure default credit crisis", "pandemic": "virus outbreak WHO pandemic"}
+
+
+def world_news():
+    """Major world themes -> top 3 fresh headlines each (Google News). Matched on the site with the effect notes."""
+    import feedparser
+    cutoff = dt.datetime.utcnow() - dt.timedelta(hours=60)
+    out = []
+    for theme, q in WORLD_Q.items():
+        try:
+            d = feedparser.parse(f"https://news.google.com/rss/search?q={quote(q + ' when:2d')}&hl=en-IN&gl=IN&ceid=IN:en")
+        except Exception as e:
+            print("  world fail", theme, str(e)[:80])
+            continue
+        n = 0
+        for e in d.entries[:12]:
+            pub = e.get("published_parsed")
+            if pub and dt.datetime(*pub[:6]) < cutoff:
+                continue
+            title = re.sub(r"\s+-\s+[^-]+$", "", e.get("title", "")).strip()
+            if not title:
+                continue
+            out.append({"theme": theme, "title": title[:200], "src": (e.get("source") or {}).get("title", "Google News"),
+                        "url": e.get("link", ""), "date": dt.datetime(*pub[:6]).strftime("%Y-%m-%d") if pub else ""})
+            n += 1
+            if n >= 3:
+                break
+        time.sleep(0.3)
+    print("world headlines:", len(out))
+    return out
+
+
 def main():
     today = ist_now().date()
     items = []
@@ -195,12 +233,18 @@ def main():
             continue
         seen.add(k); out.append(it)
     out = out[:500]
-    if not out and os.path.exists("events.json"):
+    world = []
+    if not os.environ.get("SKIP_NEWS"):
+        try:
+            world = world_news()
+        except Exception as e:
+            print("world part failed:", e)
+    if not out and not world and os.path.exists("events.json"):
         print("nothing fetched: old events.json rakhyu")
         return
     with open("events.json", "w") as f:
-        json.dump({"updated": ist_now().strftime("%Y-%m-%d %H:%M"), "items": out}, f, separators=(",", ":"), ensure_ascii=False)
-    print("Saved events.json:", len(out), "items")
+        json.dump({"updated": ist_now().strftime("%Y-%m-%d %H:%M"), "items": out, "world": world}, f, separators=(",", ":"), ensure_ascii=False)
+    print("Saved events.json:", len(out), "items,", len(world), "world headlines")
 
 
 if __name__ == "__main__":
