@@ -60,6 +60,31 @@ def touch(g, vlow, rng, lo, up, cl):
     return first, bool(first == "up" and cl < pu), bool(first == "dn" and cl > pdn)
 
 
+def path_of(g, pr, rng, op):
+    """Divas no rasto: open pachhi kayo level kyare pehli vaar aavyo (upar / niche) ane te level thi kyare pachha pharyo (close)."""
+    lv = [(pr["vlow"] + rng * x, n) for x, n in LVNAME.items()] + [(pr["point"], "Point")]
+    ev = []
+    for price, name in lv:
+        if price > op:
+            idx = next((i for i, h in enumerate(g["h"].values) if h >= price), None)
+            if idx is None:
+                continue
+            ev.append((idx, 0, "up", name, price))
+            j = next((i for i in range(idx, len(g)) if g["c"].values[i] < price), None)
+            if j is not None:
+                ev.append((j, 1, "rev_dn", name, price))      # upar thi pachha niche band (rejection)
+        elif price < op:
+            idx = next((i for i, l in enumerate(g["l"].values) if l <= price), None)
+            if idx is None:
+                continue
+            ev.append((idx, 0, "dn", name, price))
+            j = next((i for i in range(idx, len(g)) if g["c"].values[i] > price), None)
+            if j is not None:
+                ev.append((j, 1, "rev_up", name, price))      # niche thi pachha upar band
+    ev.sort(key=lambda e: (e[0], e[1], e[4]))
+    return [[g["ts"].iloc[i].strftime("%H:%M"), k, n, round(float(pr_), 2)] for i, _, k, n, pr_ in ev]
+
+
 def label_of(lo, up):
     if lo is None:
         return f"Below {up[1]}"
@@ -127,6 +152,7 @@ def analyze(m15):
             lo, up = zone_key(r, prr)
             first, ru, rd = touch(g, pr["vlow"], rng, lo, up, cl)
             rec[tag] = {"key": label_of(lo, up), "first": first, "rev_up": ru, "rev_dn": rd}
+        rec["path"] = path_of(g, pr, rng, op)
         days.append(rec)
     return days, levels
 
@@ -155,7 +181,7 @@ def summarize(days, tag):
             row["reach"] = {str(L): {"up": round(100 * np.mean([d["mx"] >= L for d in z])),
                                       "dn": round(100 * np.mean([d["mn"] <= L for d in z]))} for L in REACH}
         row["recent"] = [{"date": d["date"], "open": d["open"], "gap": d["gap"], "up": d["up"],
-                          "dn": d["dn"], "cl": d["cl"], "first": d[tag]["first"]} for d in z[-8:]][::-1]
+                          "dn": d["dn"], "cl": d["cl"], "first": d[tag]["first"], "path": d.get("path", [])} for d in z[-10:]][::-1]
         zones[key] = row
     base = {"n": len(days)}
     if days:
