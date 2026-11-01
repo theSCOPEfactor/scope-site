@@ -2,6 +2,10 @@ name: Scope Open Zone
 
 on:
   workflow_dispatch:
+    inputs:
+      full:
+        description: "1 = junu saved data bhuli ne 3 varsh pharithi khencho"
+        default: "0"
   schedule:
     - cron: "40 11 * * 1-5"   # market band thaya pachhi (5:10 PM IST)
 
@@ -24,12 +28,13 @@ jobs:
           ANGEL_CLIENT_CODE: ${{ secrets.ANGEL_CLIENT_CODE }}
           ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
           ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
+          FULL: ${{ github.event.inputs.full || '0' }}
         run: python job/scope_openzone.py
-      - name: Commit openzone.json
+      - name: Commit openzone.json and saved candles
         run: |
           git config user.name "scope-bot"
           git config user.email "scope-bot@users.noreply.github.com"
-          git add openzone.json
+          git add openzone.json openzone_candles.csv.gz
           git commit -m "openzone update" || echo "no changes"
           git pull --rebase
           git push
