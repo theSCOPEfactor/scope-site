@@ -92,8 +92,15 @@ def load_manual_industry():
     return m
 
 
+VIX = {}
+
+
 def load_universe():
     rows = get_master()
+    for r in rows:                                   # India VIX (index list ma nathi levayo, alag rakhyo)
+        if r.get("exch_seg") == "NSE" and "INDIA VIX" in str(r.get("symbol", "")).upper().replace("  ", " "):
+            VIX["token"] = r["token"]
+            break
     out = []
     for r in rows:
         if r.get("exch_seg") == "NSE" and str(r.get("symbol", "")).endswith("-EQ"):
@@ -339,6 +346,22 @@ def index_row(api, u):
     return row
 
 
+def vix_row(api):
+    """India VIX: aajno bhav, badlav, 1 varsh ma percentile ane chhela 30 divas (nano chart mate)."""
+    if not VIX.get("token"):
+        return None
+    h1 = fetch_hourly(api, VIX["token"]); time.sleep(SLEEP)
+    if h1 is None or len(h1) < 20:
+        return None
+    c = to_daily(h1)["c"].dropna()
+    if len(c) < 20:
+        return None
+    price = float(c.iloc[-1]); prev = float(c.iloc[-2])
+    return {"price": round(price, 2), "chg": round(price - prev, 2),
+            "pct": round(float((c <= price).mean()) * 100), "lo": round(float(c.min()), 2), "hi": round(float(c.max()), 2),
+            "n": int(len(c)), "series": [round(float(x), 2) for x in c.iloc[-30:]]}
+
+
 def future_row(api, label, fut):
     """Index na futures contract: price + 52W (contract ni available history) + chhela session na levels."""
     h1 = fetch_hourly(api, fut["token"], exch=fut["exch"]); time.sleep(SLEEP)
@@ -381,6 +404,12 @@ def main():
         except Exception as e:
             print("index fail", u["symbol"], e)
     print("Indices:", len(indices))
+    vix = None
+    try:
+        vix = vix_row(api)
+        print("VIX:", vix and vix["price"])
+    except Exception as e:
+        print("vix fail", e)
     futures = []
     try:
         master = get_master()
@@ -502,7 +531,7 @@ def main():
     print("Industry matched:", sum(1 for r in rows if r.get("industry")), "of", len(rows))
 
     ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)      # show India time
-    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "futures": futures, "breadth": breadth, "stocks": rows}
+    out = {"updated": ist.strftime("%Y-%m-%d %H:%M"), "count": len(rows), "indices": indices, "futures": futures, "breadth": breadth, "vix": vix, "stocks": rows}
     with open("data.json", "w") as f:
         json.dump(clean(out), f, separators=(",", ":"), allow_nan=False)
     print("Saved data.json:", len(rows), "stocks, failed:", fails)
