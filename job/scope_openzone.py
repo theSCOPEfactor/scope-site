@@ -304,6 +304,8 @@ def main():
         last = sorted(levels)[-6:]
         out["indices"][name] = {"zones": zones, "zones_np": zones_np, "base": base,
                                 "levels": {d: levels[d] for d in last},
+                                "liq": [[t.strftime("%Y-%m-%d %H:%M"), round(o, 2), round(h, 2), round(l, 2), round(c, 2)]
+                                        for t, o, h, l, c in m15[m15["ts"] >= m15["ts"].max().normalize() - pd.Timedelta(days=11)][["ts", "o", "h", "l", "c"]].itertuples(index=False)],
                                 "from": days[0]["date"] if days else None,
                                 "to": days[-1]["date"] if days else None}
         print("  days:", len(days), "latest levels:", {d: levels[d] for d in last[-2:]})
