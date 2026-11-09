@@ -29,7 +29,7 @@ def num(x):
 
 
 def parse_quote(q):
-    """Angel FULL quote row -> [price, chg%, volume] athva None."""
+    """Angel FULL quote row -> [price, chg%, volume, high, low] athva None."""
     p = num(q.get("ltp"))
     if not p or p <= 0:
         return None
@@ -37,7 +37,11 @@ def parse_quote(q):
     chg = num(q.get("percentChange"))
     if prev and prev > 0:
         chg = (p / prev - 1) * 100            # prev close thi pote j gano (vadhu bharosapatra)
-    return [round(p, 2), round(chg, 2) if chg is not None else None, int(num(q.get("tradeVolume")) or 0)]
+    hi, lo = num(q.get("high")), num(q.get("low"))
+    row = [round(p, 2), round(chg, 2) if chg is not None else None, int(num(q.get("tradeVolume")) or 0)]
+    if hi and lo and hi >= lo > 0:
+        row += [round(hi, 2), round(lo, 2)]          # divas no high/low (money flow na CLV mate)
+    return row
 
 
 def quote_once(api, exch, tokens):
