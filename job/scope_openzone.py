@@ -275,6 +275,28 @@ def fetch_new(api, exch, token, since):
     return pd.concat(parts) if parts else None
 
 
+def calm_stats(m15):
+    """Calm zone: roz no range/realised vol + divas na samay mujab (15 min slot) sarerash range."""
+    import numpy as np
+    d = m15.copy()
+    d["day"] = d["ts"].dt.strftime("%Y-%m-%d")
+    d["slot"] = d["ts"].dt.strftime("%H:%M")
+    d["ret"] = np.log(d["c"] / d["c"].shift(1))
+    d["rg"] = (d["h"] - d["l"]) / d["o"] * 100
+    days = []
+    for day, g in d.groupby("day"):
+        if len(g) < 10:
+            continue
+        o, c = float(g["o"].iloc[0]), float(g["c"].iloc[-1])
+        hi, lo = float(g["h"].max()), float(g["l"].min())
+        rv = float(np.sqrt((g["ret"].iloc[1:] ** 2).sum()) * 100)
+        days.append([day, round((hi - lo) / o * 100, 3), round(rv, 3), round((c - o) / o * 100, 3), round(hi - lo, 1)])
+    days = days[-260:]
+    keep = set(x[0] for x in days[-60:])
+    sl = d[d["day"].isin(keep)].groupby("slot")["rg"].mean()
+    return {"days": days, "slots": {k: round(float(v), 4) for k, v in sl.items()}, "slot_days": len(keep)}
+
+
 def main():
     years = float(os.environ.get("YEARS", "3"))
     api = login()
@@ -304,6 +326,7 @@ def main():
         last = sorted(levels)[-6:]
         out["indices"][name] = {"zones": zones, "zones_np": zones_np, "base": base,
                                 "levels": {d: levels[d] for d in last},
+                                "calm": calm_stats(m15),
                                 "liq": [[t.strftime("%Y-%m-%d %H:%M"), round(o, 2), round(h, 2), round(l, 2), round(c, 2)]
                                         for t, o, h, l, c in m15[m15["ts"] >= m15["ts"].max().normalize() - pd.Timedelta(days=11)][["ts", "o", "h", "l", "c"]].itertuples(index=False)],
                                 "from": days[0]["date"] if days else None,

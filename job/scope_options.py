@@ -15,6 +15,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "options.json")
 STATE = os.path.join(ROOT, "options_state.json")
+FLOW = os.path.join(ROOT, "oiflow.json")
+FLOW_STRIKES = 14          # ATM ni aaju baaju ketla strikes saachvva
+FLOW_DAYS = 3              # chhela ketla divas rakhva
 N_EXP = int(os.environ.get("EXPIRIES", "3"))
 WINDOW = float(os.environ.get("WINDOW", "0.07"))
 RATE = 0.065
@@ -201,6 +204,35 @@ def read_json(p, d):
         return d
 
 
+def append_flow(out, now):
+    """oiflow.json: market hours ma har run no OI snapshot (replay mate). Chhela FLOW_DAYS divas rakhe che."""
+    hm = now.strftime("%H:%M")
+    if now.weekday() > 4 or not ("09:10" <= hm <= "15:45"):
+        return
+    flow = read_json(FLOW, {})
+    days = flow.get("days", {})
+    d = days.setdefault(now.date().isoformat(), {})
+    for label, ix in out["indices"].items():
+        try:
+            exp = ix["expiries"][0]
+            rows = ix["chains"][exp]["rows"]
+            a = min(range(len(rows)), key=lambda i: abs(rows[i]["strike"] - ix["spot"]))
+            sel = rows[max(0, a - FLOW_STRIKES): a + FLOW_STRIKES + 1]
+            oi = lambda r, t: int((r.get(t) or {}).get("oi") or 0)
+            snap = [hm, round(ix["spot"], 2), [[r["strike"], oi(r, "ce"), oi(r, "pe")] for r in sel]]
+            node = d.setdefault(label, {"expiry": exp, "snaps": []})
+            if node.get("expiry") != exp:
+                node["expiry"], node["snaps"] = exp, []
+            node["snaps"] = [x for x in node["snaps"] if x[0] != hm] + [snap]
+        except Exception as e:
+            print("flow skip", label, e)
+    for k in sorted(days)[:-FLOW_DAYS]:
+        del days[k]
+    with open(FLOW, "w") as f:
+        json.dump({"updated": now.strftime("%Y-%m-%d %H:%M"), "days": days}, f, separators=(",", ":"))
+    print("saved oiflow.json", {k: len(v) for k, v in days.items()})
+
+
 def main():
     import requests
     sys.path.insert(0, HERE)
@@ -231,6 +263,10 @@ def main():
         json.dump(out, f, separators=(",", ":"))
     with open(STATE, "w") as f:
         json.dump(state, f, separators=(",", ":"))
+    try:
+        append_flow(out, now)
+    except Exception as e:
+        print("oiflow error:", e)
     print("saved options.json:", {k: len(v["expiries"]) for k, v in out["indices"].items()})
 
 
