@@ -233,6 +233,28 @@ def fetch_chunk(api, exch, token, frm, to, retries=4):
     return None
 
 
+VIX_TOKEN = os.environ.get("VIX_TOKEN", "99926017")      # NSE India VIX (Angel index token)
+
+
+def vix_row(api):
+    """India VIX (daily candles, 1 varsh): bhav, badlav, percentile, range, chhela 30 divas. Fail thay to None."""
+    try:
+        to = dt.datetime.now()
+        res = api.getCandleData({"exchange": "NSE", "symboltoken": VIX_TOKEN, "interval": "ONE_DAY",
+                                 "fromdate": (to - dt.timedelta(days=380)).strftime("%Y-%m-%d 09:15"),
+                                 "todate": to.strftime("%Y-%m-%d %H:%M")})
+        rows = (res or {}).get("data") if isinstance(res, dict) else None
+        if not rows or len(rows) < 20:
+            print("vix: no data", str(res)[:150]); return None
+        c = pd.Series([float(r[4]) for r in rows])
+        price, prev = float(c.iloc[-1]), float(c.iloc[-2])
+        return {"price": round(price, 2), "chg": round(price - prev, 2), "pct": round(float((c <= price).mean()) * 100),
+                "lo": round(float(c.min()), 2), "hi": round(float(c.max()), 2), "n": int(len(c)),
+                "series": [round(float(x), 2) for x in c.iloc[-30:]]}
+    except Exception as e:
+        print("vix error:", e); return None
+
+
 def fetch_all(api, exch, token, years):
     end = dt.datetime.now()
     start = end - dt.timedelta(days=int(365 * years))
@@ -335,6 +357,10 @@ def main():
     if store:
         pd.concat(store)[["name", "ts", "o", "h", "l", "c", "v"]].to_csv(CANDLES, index=False, compression="gzip")
         print("saved", CANDLES)
+    vx = vix_row(api)
+    if vx:
+        out["vix"] = vx
+        print("vix", vx["price"], vx["pct"])
     with open("openzone.json", "w") as f:
         json.dump(out, f, separators=(",", ":"))
     print("saved openzone.json", list(out["indices"]))
