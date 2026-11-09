@@ -172,12 +172,33 @@ def main():
         time.sleep(sd.SLEEP)
         return df
 
-    with_stocks = os.environ.get("LIVE_STOCKS", "0") == "1"       # default: fakat main indices (halku, ~40 sec)
+    ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)
+    prev = {}
+    try:
+        with open(OUT) as f:
+            prev = json.load(f)
+    except Exception:
+        pass
+    # stocks (~2 min) har run ma nahi: LIVE_STOCKS=1 -> hamesha, 0 -> kyarey nahi, auto (default) -> junu 24+ min juna hoy to
+    mode = os.environ.get("LIVE_STOCKS", "auto")
+    age_ok = True
+    try:
+        last = dt.datetime.strptime(prev.get("stocks_updated", ""), "%Y-%m-%d %H:%M")
+        age_ok = (ist - last).total_seconds() >= 24 * 60 or not prev.get("stocks")
+    except Exception:
+        pass
+    with_stocks = mode == "1" or (mode == "auto" and age_ok)
+    print("stocks this run:", with_stocks, "(mode", mode + ")", flush=True)
     out = build(data, master, quotes_fn, candles_fn, deadline=time.time() + DEADLINE_SEC, sleep_q=SLEEP_Q,
-                with_stocks=with_stocks, only=None if with_stocks else MAIN)
+                with_stocks=with_stocks, only=MAIN)
     if not out["indices"] and len(out["stocks"]) < 50:
         print("quotes aavya nathi - live.json badlyu nahi"); return
-    ist = dt.datetime.utcnow() + dt.timedelta(hours=5, minutes=30)
+    if with_stocks and len(out["stocks"]) >= 50:
+        out["stocks_updated"] = ist.strftime("%Y-%m-%d %H:%M")
+    elif prev.get("stocks"):                                   # aa run ma stocks nahi - junu rakho
+        out["stocks"] = prev["stocks"]
+        if prev.get("stocks_updated"):
+            out["stocks_updated"] = prev["stocks_updated"]
     out["updated"] = ist.strftime("%Y-%m-%d %H:%M")
     with open(OUT, "w") as f:
         json.dump(out, f, separators=(",", ":"), allow_nan=False)
