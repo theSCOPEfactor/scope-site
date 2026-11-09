@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name "scope-bot"
           git config user.email "scope-bot@users.noreply.github.com"
-          git add options.json options_state.json
+          git add options.json options_state.json oiflow.json 2>/dev/null || git add options.json options_state.json
           git commit -m "options update" || echo "no changes"
           git pull --rebase
           git push
