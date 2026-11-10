@@ -197,11 +197,11 @@ TV_ROWS = 24        # tamara TradingView profile (Rows 24): edges 24934.8 / 2504
 TV_TICK = 0.05      # index future no mintick
 
 
-def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA, tick=TV_TICK):
+def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA, tick=TV_TICK, min_n=30):
     """SCOPE PRO (Pine) jevo j profile: rows tick-aligned (f_vaCalc/main profile ni jem), volume dar candle na
     high-low ma row sathe overlap mujab, POC = row nu mid, Value Area 1-1 row sarkave (tie -> POC ni nazdik wali),
     ane jo next row umerta target (70%) vatay to tya j aatki jay. d = 1-min candles (ts,o,h,l,c,v)."""
-    if d is None or len(d) < 30:
+    if d is None or len(d) < min_n:
         return None
     r_hi, r_lo = float(d["h"].max()), float(d["l"].min())
     if r_hi <= r_lo:
@@ -334,12 +334,16 @@ def day_levels(m5, bins=40, min_bars=6):
     d = m5[m5["ts"].dt.date == last]
     if len(d) < min_bars:
         return None
-    p = volume_profile(d, bins=bins)
+    p = None
+    if float(d["v"].sum()) > 0:                              # asli volume hoy (future) -> SCOPE PRO jevo 24-row profile
+        p = frvp_tv(d, min_n=min_bars)
+    if not p:
+        p = volume_profile(d, bins=bins)                     # index (volume nathi) -> time based
     if not p:
         return None
     out = {"date": str(last), "open": round(float(d["o"].iloc[0]), 2),
            "hi": round(float(d["h"].max()), 2), "lo": round(float(d["l"].min()), 2)}
-    out.update({k: round(v, 2) for k, v in p.items()})
+    out.update({k: round(v, 2) for k, v in p.items() if k in ("point", "vhigh", "vlow")})
     return out
 
 
