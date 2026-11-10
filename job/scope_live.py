@@ -58,7 +58,7 @@ def quote_once(api, exch, tokens):
     return {}
 
 
-def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_q=0, with_stocks=True, only=None):
+def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_q=0, with_stocks=True, only=None, frvp_fn=None):
     """quotes_fn(exch, tokens)->{token: quote}, candles_fn(exch, token)->5-min df.
     Pehla indices+futures (nana), pachhi stocks (vadhu traded pehla). deadline (time.time()) vati jaay to je male te aape."""
     from scope_daily import pick_future, day_levels, _norm
@@ -117,6 +117,13 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
                         tgt["day"] = dl
                 except Exception as e:
                     print(lab, "candles fail", name, str(e)[:100], flush=True)
+        if fut and f is not None and frvp_fn and not (deadline and time.time() > deadline):
+            try:                                               # TradingView jevo previous-day FRVP: future na 1-min asli volume thi
+                fr = frvp_fn(fut["exch"], fut["token"])
+                if fr:
+                    f["frvp"] = fr
+            except Exception as e:
+                print("frvp fail", name, str(e)[:100], flush=True)
         if "price" in row or "fut" in row:
             out["indices"].append(row)
     print("indices done:", len(out["indices"]), flush=True)
@@ -187,10 +194,15 @@ def main():
         age_ok = (ist - last).total_seconds() >= 24 * 60 or not prev.get("stocks")
     except Exception:
         pass
+    def frvp_fn(exch, token):
+        df = sd.fetch_hourly(api, token, retries=2, interval="ONE_MINUTE", days=7, exch=exch)
+        time.sleep(sd.SLEEP)
+        return sd.session_frvps(df, 3)
+
     with_stocks = mode == "1" or (mode == "auto" and age_ok)
     print("stocks this run:", with_stocks, "(mode", mode + ")", flush=True)
     out = build(data, master, quotes_fn, candles_fn, deadline=time.time() + DEADLINE_SEC, sleep_q=SLEEP_Q,
-                with_stocks=with_stocks, only=MAIN)
+                with_stocks=with_stocks, only=MAIN, frvp_fn=frvp_fn)
     if not out["indices"] and len(out["stocks"]) < 50:
         print("quotes aavya nathi - live.json badlyu nahi"); return
     if with_stocks and len(out["stocks"]) >= 50:

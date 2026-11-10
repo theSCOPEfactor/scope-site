@@ -193,6 +193,72 @@ def volume_profile(h1, bins=BINS):
     return {"point": mid(poc), "vhigh": float(edges[hi_i + 1]), "vlow": float(edges[lo_i])}
 
 
+TV_ROWS = 24        # TradingView FRVP default rows (screenshot thi: 24 rows na edges barabar match thaya)
+
+
+def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA):
+    """TradingView FRVP jevo profile. d = 1-min candles (ts,o,h,l,c,v) ek session na.
+    Volume dar candle na high-low ma row sathe overlap mujab vahenchay che; Value Area POC thi
+    ek vaar ma 2-2 rows (upar/niche) sarkhavi ne 70% sudhi bhare che. Return dict athva None."""
+    if d is None or len(d) < 30:
+        return None
+    lo, hi = float(d["l"].min()), float(d["h"].max())
+    if hi <= lo:
+        return None
+    step = (hi - lo) / rows
+    edges = lo + step * np.arange(rows + 1)
+    vol = np.zeros(rows)
+    for l, h, v in zip(d["l"].values, d["h"].values, d["v"].values.astype(float)):
+        if v <= 0:
+            continue
+        if h <= l:
+            vol[min(int((l - lo) / step), rows - 1)] += v
+            continue
+        i0 = min(int((l - lo) / step), rows - 1)
+        i1 = min(int((h - lo) / step), rows - 1)
+        for i in range(i0, i1 + 1):
+            ov = min(h, edges[i + 1]) - max(l, edges[i])
+            if ov > 0:
+                vol[i] += v * ov / (h - l)
+    total = vol.sum()
+    if total <= 0:
+        return None
+    poc = int(vol.argmax())
+    lo_i = hi_i = poc
+    acc = vol[poc]
+    while acc < va * total and (lo_i > 0 or hi_i < rows - 1):
+        up = vol[hi_i + 1:hi_i + 3].sum() if hi_i < rows - 1 else -1
+        dn = vol[max(lo_i - 2, 0):lo_i].sum() if lo_i > 0 else -1
+        if up >= dn:
+            for _ in range(2):
+                if hi_i < rows - 1 and acc < va * total:
+                    hi_i += 1; acc += vol[hi_i]
+        else:
+            for _ in range(2):
+                if lo_i > 0 and acc < va * total:
+                    lo_i -= 1; acc += vol[lo_i]
+    return {"hi": round(hi, 2), "lo": round(lo, 2), "point": round(float((edges[poc] + edges[poc + 1]) / 2), 2),
+            "vhigh": round(float(edges[hi_i + 1]), 2), "vlow": round(float(edges[lo_i]), 2), "rows": rows}
+
+
+def session_frvps(m1, n=3):
+    """1-min candles -> {date: frvp_tv} chhella n PURA sessions (9:15-15:30; adhura/Muhurat skip)."""
+    if m1 is None or len(m1) == 0:
+        return {}
+    m1 = m1.sort_values("ts").drop_duplicates("ts")
+    t = m1["ts"].dt.time
+    m1 = m1[(t >= dt.time(9, 15)) & (t <= dt.time(15, 30))].copy()
+    m1["date"] = m1["ts"].dt.date
+    out = {}
+    for day, g in m1.groupby("date"):
+        if len(g) < 330 or g["ts"].dt.time.max() < dt.time(15, 25) or g["ts"].dt.time.min() > dt.time(9, 20):
+            continue
+        r = frvp_tv(g)
+        if r:
+            out[str(day)] = r
+    return {k: out[k] for k in sorted(out)[-n:]}
+
+
 def fib_levels(vlow, vhigh):
     r = vhigh - vlow
     f = lambda x: round(vlow + r * x, 2)
