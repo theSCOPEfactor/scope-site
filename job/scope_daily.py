@@ -193,7 +193,7 @@ def volume_profile(h1, bins=BINS):
     return {"point": mid(poc), "vhigh": float(edges[hi_i + 1]), "vlow": float(edges[lo_i])}
 
 
-TV_ROWS = 48        # SCOPE PRO (Pine) ma Previous Day / Today mate auto rows = 48
+TV_ROWS = 24        # tamara TradingView profile (Rows 24): edges 24934.8 / 25047.0 / POC 25031.7 barabar 10.2-pt rows
 TV_TICK = 0.05      # index future no mintick
 
 
