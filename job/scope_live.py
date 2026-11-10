@@ -113,6 +113,11 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
             for tgt, ex, tk, lab in ((row, st[1], st[0], "index"), (f, fut["exch"], fut["token"], "future")):
                 try:
                     cdf = candles_fn(ex, tk)
+                    if cdf is None or len(cdf) == 0:
+                        time.sleep(3)
+                        cdf = candles_fn(ex, tk)
+                    if cdf is None or len(cdf) == 0:
+                        print(lab, "candles khali:", name, flush=True)
                     dl = day_levels(cdf, min_bars=5)
                     if dl:
                         tgt["day"] = dl
@@ -202,6 +207,19 @@ def main():
     print("stocks this run:", with_stocks, "(mode", mode + ")", flush=True)
     out = build(data, master, quotes_fn, candles_fn, deadline=time.time() + DEADLINE_SEC, sleep_q=SLEEP_Q,
                 with_stocks=with_stocks, only=MAIN, frvp_fn=frvp_fn)
+    try:                                    # candles na aave to junu day / frvp jalvai rakho (aaj na/kal na levels khali na thay)
+        pm = {r.get("symbol"): r for r in (prev.get("indices") or [])}
+        for r in out["indices"]:
+            pr = pm.get(r.get("symbol")) or {}
+            if not r.get("day") and pr.get("day"):
+                r["day"] = pr["day"]
+            f, pf = r.get("fut"), pr.get("fut") or {}
+            if f is not None:
+                for k in ("day", "frvp"):
+                    if not f.get(k) and pf.get(k):
+                        f[k] = pf[k]
+    except Exception as e:
+        print("carry-forward fail", str(e)[:80], flush=True)
     if not out["indices"] and len(out["stocks"]) < 50:
         print("quotes aavya nathi - live.json badlyu nahi"); return
     if with_stocks and len(out["stocks"]) >= 50:
