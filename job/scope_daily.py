@@ -193,52 +193,67 @@ def volume_profile(h1, bins=BINS):
     return {"point": mid(poc), "vhigh": float(edges[hi_i + 1]), "vlow": float(edges[lo_i])}
 
 
-TV_ROWS = 24        # TradingView FRVP default rows (screenshot thi: 24 rows na edges barabar match thaya)
+TV_ROWS = 48        # SCOPE PRO (Pine) ma Previous Day / Today mate auto rows = 48
+TV_TICK = 0.05      # index future no mintick
 
 
-def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA):
-    """TradingView FRVP jevo profile. d = 1-min candles (ts,o,h,l,c,v) ek session na.
-    Volume dar candle na high-low ma row sathe overlap mujab vahenchay che; Value Area POC thi
-    ek vaar ma 2-2 rows (upar/niche) sarkhavi ne 70% sudhi bhare che. Return dict athva None."""
+def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA, tick=TV_TICK):
+    """SCOPE PRO (Pine) jevo j profile: rows tick-aligned (f_vaCalc/main profile ni jem), volume dar candle na
+    high-low ma row sathe overlap mujab, POC = row nu mid, Value Area 1-1 row sarkave (tie -> POC ni nazdik wali),
+    ane jo next row umerta target (70%) vatay to tya j aatki jay. d = 1-min candles (ts,o,h,l,c,v)."""
     if d is None or len(d) < 30:
         return None
-    lo, hi = float(d["l"].min()), float(d["h"].max())
-    if hi <= lo:
+    r_hi, r_lo = float(d["h"].max()), float(d["l"].min())
+    if r_hi <= r_lo:
         return None
-    step = (hi - lo) / rows
-    edges = lo + step * np.arange(rows + 1)
-    vol = np.zeros(rows)
+    tot = max(1, int(round((r_hi - r_lo) / tick)))
+    raw = tot / rows
+    t_dn, t_up = max(1, int(np.floor(raw))), max(1, int(np.ceil(raw)))
+    rw_dn, rw_up = int(np.ceil(tot / t_dn)), int(np.ceil(tot / t_up))
+    tpr = t_dn if abs(rw_dn - rows) <= abs(rw_up - rows) else t_up
+    lows, highs, px, left = [], [], r_lo, tot
+    while left > 0:
+        tt = min(tpr, left)
+        lows.append(px); px += tt * tick; highs.append(px); left -= tt
+    lows, highs = np.array(lows), np.array(highs)
+    n = len(lows)
+    vol = np.zeros(n)
     for l, h, v in zip(d["l"].values, d["h"].values, d["v"].values.astype(float)):
-        if v <= 0:
-            continue
-        if h <= l:
-            vol[min(int((l - lo) / step), rows - 1)] += v
-            continue
-        i0 = min(int((l - lo) / step), rows - 1)
-        i1 = min(int((h - lo) / step), rows - 1)
-        for i in range(i0, i1 + 1):
-            ov = min(h, edges[i + 1]) - max(l, edges[i])
-            if ov > 0:
-                vol[i] += v * ov / (h - l)
-    total = vol.sum()
-    if total <= 0:
+        br = h - l
+        ov = np.minimum(h, highs) - np.maximum(l, lows)
+        m = ov > 0
+        if m.any():
+            vol[m] += v * (ov[m] / br if br > 0 else 1.0)
+    mx = vol.max()
+    if mx <= 0:
         return None
-    poc = int(vol.argmax())
-    lo_i = hi_i = poc
-    acc = vol[poc]
-    while acc < va * total and (lo_i > 0 or hi_i < rows - 1):
-        up = vol[hi_i + 1:hi_i + 3].sum() if hi_i < rows - 1 else -1
-        dn = vol[max(lo_i - 2, 0):lo_i].sum() if lo_i > 0 else -1
-        if up >= dn:
-            for _ in range(2):
-                if hi_i < rows - 1 and acc < va * total:
-                    hi_i += 1; acc += vol[hi_i]
+    poc = int(np.argmax(vol))
+    tgt = vol.sum() * va
+    acc, lo_i, hi_i = mx, poc, poc
+    for _ in range(n):
+        if acc >= tgt:
+            break
+        up_v = vol[hi_i + 1] if hi_i < n - 1 else -1.0
+        dn_v = vol[lo_i - 1] if lo_i > 0 else -1.0
+        if up_v < 0 and dn_v < 0:
+            break
+        if up_v < 0:
+            go_up = False
+        elif dn_v < 0:
+            go_up = True
+        elif up_v != dn_v:
+            go_up = up_v > dn_v
         else:
-            for _ in range(2):
-                if lo_i > 0 and acc < va * total:
-                    lo_i -= 1; acc += vol[lo_i]
-    return {"hi": round(hi, 2), "lo": round(lo, 2), "point": round(float((edges[poc] + edges[poc + 1]) / 2), 2),
-            "vhigh": round(float(edges[hi_i + 1]), 2), "vlow": round(float(edges[lo_i]), 2), "rows": rows}
+            go_up = (hi_i + 1 - poc) <= (poc - (lo_i - 1))
+        nx = up_v if go_up else dn_v
+        if acc + nx > tgt:
+            break
+        if go_up:
+            hi_i += 1; acc += up_v
+        else:
+            lo_i -= 1; acc += dn_v
+    return {"hi": round(r_hi, 2), "lo": round(r_lo, 2), "point": round(float((lows[poc] + highs[poc]) / 2), 2),
+            "vhigh": round(float(highs[hi_i]), 2), "vlow": round(float(lows[lo_i]), 2), "rows": n}
 
 
 def session_frvps(m1, n=3):
