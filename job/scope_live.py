@@ -112,18 +112,17 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
         if fut and not (deadline and time.time() > deadline):      # 5-min candles: fakat futures vala index
             for tgt, ex, tk, lab in ((row, st[1], st[0], "index"), (f, fut["exch"], fut["token"], "future")):
                 try:
-                    dl = day_levels(candles_fn(ex, tk), min_bars=5)
+                    cdf = candles_fn(ex, tk)
+                    dl = day_levels(cdf, min_bars=5)
                     if dl:
                         tgt["day"] = dl
+                    if lab == "future":                        # previous-day FRVP: SCOPE PRO jevu (48 rows, tick-aligned), 5-min candles
+                        from scope_daily import session_frvps
+                        fr = session_frvps(cdf, 3, min_bars=70)
+                        if fr:
+                            f["frvp"] = fr
                 except Exception as e:
                     print(lab, "candles fail", name, str(e)[:100], flush=True)
-        if fut and f is not None and frvp_fn and not (deadline and time.time() > deadline):
-            try:                                               # TradingView jevo previous-day FRVP: future na 1-min asli volume thi
-                fr = frvp_fn(fut["exch"], fut["token"])
-                if fr:
-                    f["frvp"] = fr
-            except Exception as e:
-                print("frvp fail", name, str(e)[:100], flush=True)
         if "price" in row or "fut" in row:
             out["indices"].append(row)
     print("indices done:", len(out["indices"]), flush=True)

@@ -256,7 +256,7 @@ def frvp_tv(d, rows=TV_ROWS, va=VALUE_AREA, tick=TV_TICK):
             "vhigh": round(float(highs[hi_i]), 2), "vlow": round(float(lows[lo_i]), 2), "rows": n}
 
 
-def session_frvps(m1, n=3):
+def session_frvps(m1, n=3, min_bars=330):
     """1-min candles -> {date: frvp_tv} chhella n PURA sessions (9:15-15:30; adhura/Muhurat skip)."""
     if m1 is None or len(m1) == 0:
         return {}
@@ -266,10 +266,15 @@ def session_frvps(m1, n=3):
     m1["date"] = m1["ts"].dt.date
     out = {}
     for day, g in m1.groupby("date"):
-        if len(g) < 330 or g["ts"].dt.time.max() < dt.time(15, 25) or g["ts"].dt.time.min() > dt.time(9, 20):
+        if len(g) < min_bars or g["ts"].dt.time.max() < dt.time(15, 25) or g["ts"].dt.time.min() > dt.time(9, 20):
             continue
         r = frvp_tv(g)
         if r:
+            tv_ = float(g["v"].sum())                      # diagnostic: TradingView sathe volume sarkhavva mate
+            hv = g.groupby(g["ts"].dt.hour)["v"].sum()
+            r["diag"] = {"bars": int(len(g)), "zero": int((g["v"] <= 0).sum()), "tot": int(tv_),
+                         "vh": {str(int(h)): round(float(v) / tv_ * 100, 1) for h, v in hv.items()} if tv_ > 0 else {},
+                         "last": round(float(g["v"].iloc[-1]), 0), "first": round(float(g["v"].iloc[0]), 0)}
             out[str(day)] = r
     return {k: out[k] for k in sorted(out)[-n:]}
 
