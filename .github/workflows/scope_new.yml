@@ -8,7 +8,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: scope-new
@@ -20,6 +20,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Get private data repo
+        uses: actions/checkout@v4
+        with:
+          repository: theSCOPEfactor/scope-data
+          token: ${{ secrets.DATA_TOKEN }}
+          path: _data
+      - name: Restore data files (jobs expect them in the root)
+        run: |
+          cp _data/*.json . 2>/dev/null || true
+          cp _data/*.gz . 2>/dev/null || true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -32,11 +42,12 @@ jobs:
           ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
           EXTRA_SYMBOLS: ${{ github.event.inputs.symbols }}
         run: python job/scope_new.py
-      - name: Commit new.json
+      - name: Save data files to the private data repo
         run: |
+          cd _data
+          for f in new.json known_tokens.json; do [ -f "../$f" ] && cp "../$f" . || true; done
           git config user.name "scope-bot"
           git config user.email "scope-bot@users.noreply.github.com"
-          git add new.json known_tokens.json
+          git add -A
           git commit -m "new listings update" || echo "no changes"
-          git pull --rebase
-          git push
+          for i in 1 2 3 4; do git pull --rebase && git push && break || sleep 6; done
