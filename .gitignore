@@ -1,0 +1,18 @@
+# data files live in the private scope-data repo, never here
+data.json
+options.json
+options_state.json
+oiflow.json
+live.json
+openzone.json
+openzone_candles.csv.gz
+new.json
+known_tokens.json
+fpiflow.json
+events.json
+details.json
+backtest.json
+*_cache.json
+_data/
+userdata/
+*.db
