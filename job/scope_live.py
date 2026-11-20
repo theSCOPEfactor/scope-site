@@ -84,6 +84,7 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
         by_ex.setdefault(st[1], []).append(st[0])
         if fut:
             by_ex.setdefault(fut["exch"], []).append(str(fut["token"]))
+    by_ex.setdefault("NSE", []).append("99926017")           # India VIX
     Q = {}
     for ex, toks in by_ex.items():
         for i in range(0, len(toks), BATCH):
@@ -92,6 +93,13 @@ def build(data, master, quotes_fn, candles_fn, today=None, deadline=None, sleep_
             if sleep_q:
                 time.sleep(sleep_q)
     print("index quotes:", len(Q), "items:", len(items), flush=True)
+    try:
+        vq = Q.get(("NSE", "99926017"))
+        vv = parse_quote(vq) if vq else None
+        if vv:
+            out["vix"] = {"price": vv[0], "chg": vv[1]}
+    except Exception as e:
+        print("vix fail", str(e)[:80], flush=True)
     for name, st, fut in items:
         row = {"symbol": name}
         sq = Q.get((st[1], st[0]))
@@ -207,6 +215,8 @@ def main():
     print("stocks this run:", with_stocks, "(mode", mode + ")", flush=True)
     out = build(data, master, quotes_fn, candles_fn, deadline=time.time() + DEADLINE_SEC, sleep_q=SLEEP_Q,
                 with_stocks=with_stocks, only=MAIN, frvp_fn=frvp_fn)
+    if "vix" not in out and prev.get("vix"):
+        out["vix"] = prev["vix"]
     try:                                    # candles na aave to junu day / frvp jalvai rakho (aaj na/kal na levels khali na thay)
         pm = {r.get("symbol"): r for r in (prev.get("indices") or [])}
         for r in out["indices"]:
