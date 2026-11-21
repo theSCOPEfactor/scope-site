@@ -1,6 +1,9 @@
 name: Scope New Listings
 
 on:
+  schedule:
+    - cron: "5,35 4-9 * * 1-5"      # market hours, har 30 min (9:35 - 15:35 IST)
+    - cron: "45 10 * * 1-5"         # 16:15 IST, close no bhav
   workflow_dispatch:
     inputs:
       symbols:
