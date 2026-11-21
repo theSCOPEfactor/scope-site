@@ -1,7 +1,7 @@
 """
 Scope Open-zone job  (GitHub Actions ma chale che)
 
-Index (Nifty 50, Nifty Bank, Sensex) mate:
+Index (Nifty 50, Nifty Bank, Sensex) mate (levels = TradingView set):
   - Dar divas na candles (15 min, ~3 varsh) thi te divas no volume-profile: VLOW(0), VHIGH(1), Point
   - Bija divas no OPEN te levels ma kya padyo (fib ratio) ane open pachhi su thayu
   - Zone-wise stats -> openzone.json   (website /openzone page vanche che)
@@ -25,18 +25,21 @@ INDICES = [("Nifty 50", "NSE", "99926000"),
            ("Nifty Bank", "NSE", "99926009"),
            ("Sensex", "BSE", "99919000")]
 
-# Ladder = site na level (Stock page jevu): ratio VLOW=0, VHIGH=1 par based
-LVNAME = {-0.618: "Deep reversal 2", -0.272: "Deep reversal 1", 0: "VLOW", 0.25: "Lower reversal",
-          0.75: "Upper reversal", 1: "VHIGH", 1.272: "Extension"}
+# Ladder = TradingView na level (ZB = 0 = VLOW, 1B = 1 = VHIGH): ratio ni jagya e naam (naam nathi tya ratio)
+TV_R = [-7, -6.854, -6.236, -5.854, -5.236, -4.236, -3.618, -2.618, -1.618, -0.618, -0.236, 0, 0.236, 0.618, 1,
+        1.618, 2.618, 3.618, 4.236, 5.236, 5.854, 6.236, 6.854, 7]
+TV_N = {-1.618: "IMPULSIVE BOUNCER", -0.618: "BOUNCER", 0: "ZB", 0.236: "REVERSAL", 0.618: "GOLDEN REVERSAL",
+        1: "1B", 1.618: "GR1"}
+LVNAME = {x: TV_N.get(x, ("+" if x > 0 else "") + ("%g" % x)) for x in TV_R}
 LADDER = sorted(LVNAME)
-REACH = LADDER + [1.618, 2.0]
+REACH = LADDER
 
 
 def zone_key(r, pr=None):
     """Open (ratio r) kya be level vachche. pr = Point no ratio (hoy to e pan level ganay)."""
     lv = [(x, n) for x, n in LVNAME.items()]
     if pr is not None:
-        lv.append((pr, "Point"))
+        lv.append((pr, "POC"))
     lv.sort()
     lo = [(x, n) for x, n in lv if x <= r]
     up = [(x, n) for x, n in lv if x > r]
@@ -62,7 +65,7 @@ def touch(g, vlow, rng, lo, up, cl):
 
 def path_of(g, pr, rng, op):
     """Divas no rasto: open pachhi kayo level kyare pehli vaar aavyo (upar / niche) ane te level thi kyare pachha pharyo (close)."""
-    lv = [(pr["vlow"] + rng * x, n) for x, n in LVNAME.items()] + [(pr["point"], "Point")]
+    lv = [(pr["vlow"] + rng * x, n) for x, n in LVNAME.items()] + [(pr["point"], "POC")]
     ev = []
     for price, name in lv:
         if price > op:
