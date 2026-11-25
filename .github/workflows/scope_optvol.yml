@@ -42,6 +42,8 @@ jobs:
           ANGEL_CLIENT_CODE: ${{ secrets.ANGEL_CLIENT_CODE }}
           ANGEL_PASSWORD: ${{ secrets.ANGEL_PASSWORD }}
           ANGEL_TOTP_SECRET: ${{ secrets.ANGEL_TOTP_SECRET }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           OV_FORCE: ${{ github.event.inputs.force }}
         run: python job/scope_optvol.py
       - name: Save data files to the private data repo
