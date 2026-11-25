@@ -115,14 +115,14 @@ def oi_tag(doi, pct):
     if doi is None or pct is None:
         return "OI/bhav no pharak malyo nathi"
     if doi >= 3 and pct > 0.5:
-        return "OI vadhyo + bhav vadhyo: navi position, kharidi jevu"
+        return "navi position, kharidi jevu"
     if doi >= 3 and pct < -0.5:
-        return "OI vadhyo + bhav ghatyo: navi position, writing jevu"
+        return "navi position, writing jevu"
     if doi <= -3 and pct > 0.5:
-        return "OI ghatyo + bhav vadhyo: short covering jevu"
+        return "short covering jevu"
     if doi <= -3 and pct < -0.5:
-        return "OI ghatyo + bhav ghatyo: long band thai rahya"
-    return "OI ma khas pharak nathi (volume j vadhyu)"
+        return "long band thai rahya"
+    return "OI same, volume j vadhyu"
 
 
 def lakh(x):
@@ -193,8 +193,22 @@ def send_tg(text):
         import requests
     except Exception:
         return False
-    lines = (text or "").split("\n")
-    body = "<b>" + html.escape(lines[0]) + "</b>\n" + html.escape("\n".join(lines[1:])) if lines else ""
+    body, pre = [], None
+    for k, ln in enumerate((text or "").split("\n")):
+        if ln.strip() == "```":
+            if pre is None:
+                pre = []
+            else:
+                body.append("<pre>" + "\n".join(pre) + "</pre>")
+                pre = None
+        elif pre is not None:
+            pre.append(html.escape(ln))
+        else:
+            body.append("<b>" + html.escape(ln) + "</b>" if k == 0 else html.escape(ln))
+    if pre is not None:
+        body.append("<pre>" + "\n".join(pre) + "</pre>")
+    body = "\n".join(body)
+    plain = (text or "").replace("```\n", "").replace("\n```", "")
     for i in range(4):
         try:
             r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
@@ -202,7 +216,7 @@ def send_tg(text):
             if r.status_code == 200:
                 return True
             if r.status_code == 400:      # HTML vandho: saada text
-                r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", data={"chat_id": chat, "text": text}, timeout=20)
+                r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", data={"chat_id": chat, "text": plain}, timeout=20)
                 if r.status_code == 200:
                     return True
             print("tg send", r.status_code, r.text[:120], flush=True)
@@ -212,17 +226,22 @@ def send_tg(text):
     return False
 
 
+SHORT = {"NIFTY": "N", "BANKNIFTY": "BN", "SENSEX": "SX"}
+
+
 def digest(top, total):
     n = len(top)
-    head = "OPTION VOLUME SPIKE" + (f" | top {n} of {total}" if total > n else (f" | {n}" if n > 1 else ""))
-    out = [head]
+    head = "OPTION VOLUME SPIKE" + (f" | top {n} of {total}" if total > n else "")
+    rows = [f"{'#':<1} {'Strike':<13} {'x':>4} {'Rs cr':>6} {'Spot':>6} {'OI%':>5}"]
     for i, a in enumerate(top, 1):
-        sgn = "+" if a["dist"] >= 0 else "-"
-        pc = f" ({a['pct']:+.1f}%)" if a.get("pct") is not None else ""
-        oi = f" | OI {a['doi']:+.1f}%" if a.get("doi") is not None else ""
-        out.append(f"{i}) {a['index']} {a['strike']:g} {a['side']}" + (" (round)" if a.get("round") else "")
-                   + f" | {a['ratio']}x | Rs {a['turn'] / 1e7:,.1f} cr | spot thi {sgn}{abs(a['dist']):,.0f} pts")
-        out.append(f"   LTP {a['ltp']:,.2f}{pc}{oi}: {a['tag']}")
+        name = f"{SHORT.get(a['index'], a['index'])} {a['strike']:g} {a['side']}" + ("*" if a.get("round") else "")
+        oi = "-" if a.get("doi") is None else f"{a['doi']:+.0f}"
+        rows.append(f"{i:<1} {name:<13} {a['ratio']:>4.1f} {a['turn'] / 1e7:>6.1f} {a['dist']:>+6.0f} {oi:>5}")
+    out = [head, "```"] + rows + ["```"]
+    for i, a in enumerate(top, 1):
+        pc = f", LTP {a['ltp']:,.1f} ({a['pct']:+.1f}%)" if a.get("pct") is not None else f", LTP {a['ltp']:,.1f}"
+        out.append(f"{i}) {a['tag']}{pc}")
+    out.append("N=Nifty, BN=BankNifty, SX=Sensex, *=round level. x = volume kitla guna, Spot = spot thi pts.")
     out.append("Mahiti: moti activity. Direction nathi (hedge pan hoi shake). Salah nathi, nirnay tamaro.")
     return "\n".join(out)
 
