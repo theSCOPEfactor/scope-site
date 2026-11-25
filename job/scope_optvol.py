@@ -7,10 +7,10 @@ Output: optvol.json (alerts) + optvol_state.json (pachhli snapshot). Telegram mo
 
 FAKAT MAHITI: volume spike = moti activity. Direction nathi (buy ke write, hedge pan hoi shake). Salah nathi.
 
-Secrets: ANGEL_API_KEY, ANGEL_CLIENT_CODE, ANGEL_PASSWORD, ANGEL_TOTP_SECRET
+Secrets: ANGEL_API_KEY, ANGEL_CLIENT_CODE, ANGEL_PASSWORD, ANGEL_TOTP_SECRET, TG_BOT_TOKEN, TG_CHAT_ID (alert tarat Telegram ma)
 Env (optional): OV_MULT (5), OV_ROUND_MULT (4), OV_MIN_LAKH (25), OV_WINDOW (10), OV_COOLDOWN_MIN (45), OV_FORCE (1 = time check chhodo)
 """
-import os, sys, json, time, statistics, datetime as dt
+import os, sys, json, time, html, statistics, datetime as dt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -167,6 +167,34 @@ def analyse(cfg, spot, chain, strikes, atm, quotes, prev, now_iso, same_day, ale
     return alerts, snap
 
 
+def send_tg(text):
+    """Spike male tyare j Telegram ma moklo (GitHub Actions ne internet khulo che). True = gayu."""
+    tok, chat = os.environ.get("TG_BOT_TOKEN", "").strip(), os.environ.get("TG_CHAT_ID", "").strip()
+    if not tok or not chat:
+        return False
+    try:
+        import requests
+    except Exception:
+        return False
+    lines = (text or "").split("\n")
+    body = "<b>" + html.escape(lines[0]) + "</b>\n" + html.escape("\n".join(lines[1:])) if lines else ""
+    for i in range(4):
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
+                              data={"chat_id": chat, "text": body, "parse_mode": "HTML", "disable_web_page_preview": "true"}, timeout=20)
+            if r.status_code == 200:
+                return True
+            if r.status_code == 400:      # HTML vandho: saada text
+                r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", data={"chat_id": chat, "text": text}, timeout=20)
+                if r.status_code == 200:
+                    return True
+            print("tg send", r.status_code, r.text[:120], flush=True)
+        except Exception as e:
+            print("tg send exc", str(e).replace(tok, "***")[:120], flush=True)
+        time.sleep(2 * (i + 1))
+    return False
+
+
 def main():
     now = dt.datetime.now(IST)
     if os.environ.get("OV_FORCE") != "1" and not in_market(now):
@@ -205,6 +233,9 @@ def main():
         print(cfg["name"], status[cfg["name"]], flush=True)
     for k, v in prev_all.items():                      # je strike aa vakhate nathi aavya, tenu juno snapshot rakho
         new_snap.setdefault(k, v)
+    for a in new_alerts:                               # tarat Telegram ma (site pachhi pharvar na moke: sent=True)
+        a["sent"] = send_tg(a["text"])
+        print("alert", a["index"], a["strike"], a["side"], "telegram:", a["sent"], flush=True)
     alerts = (out.get("alerts") or []) + new_alerts
     save_json(OUT, {"updated": now_iso, "alerts": alerts[-KEEP:], "status": status})
     save_json(STATE, {"date": today.isoformat(), "snap": new_snap, "alerted": alerted, "ts": now_iso})
