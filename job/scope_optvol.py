@@ -8,7 +8,7 @@ Output: optvol.json (alerts) + optvol_state.json (pachhli snapshot). Telegram mo
 FAKAT MAHITI: volume spike = moti activity. Direction nathi (buy ke write, hedge pan hoi shake). Salah nathi.
 
 Secrets: ANGEL_API_KEY, ANGEL_CLIENT_CODE, ANGEL_PASSWORD, ANGEL_TOTP_SECRET, TG_BOT_TOKEN, TG_CHAT_ID (alert tarat Telegram ma)
-Env (optional): OV_MULT (5), OV_ROUND_MULT (4), OV_MIN_LAKH (25), OV_WINDOW (10), OV_COOLDOWN_MIN (45), OV_FORCE (1 = time check chhodo)
+Env (optional): OV_MULT (6), OV_ROUND_MULT (5), OV_MIN_LAKH (100), OV_TOP (3), OV_WINDOW (10), OV_COOLDOWN_MIN (45), OV_FORCE (1 = time check chhodo)
 """
 import os, sys, json, time, html, statistics, datetime as dt
 
@@ -18,11 +18,12 @@ sys.path.insert(0, HERE)
 OUT = os.path.join(ROOT, "optvol.json")
 STATE = os.path.join(ROOT, "optvol_state.json")
 
-MULT = float(os.environ.get("OV_MULT", "5"))              # spike = median na kitla guna
-RMULT = float(os.environ.get("OV_ROUND_MULT", "4"))      # round level par thodu halku
-MIN_LAKH = float(os.environ.get("OV_MIN_LAKH", "25"))    # navi 10 min no minimum turnover (Rs lakh)
+MULT = float(os.environ.get("OV_MULT", "6"))              # spike = median na kitla guna
+RMULT = float(os.environ.get("OV_ROUND_MULT", "5"))      # round level par thodu halku
+MIN_LAKH = float(os.environ.get("OV_MIN_LAKH", "100"))    # navi 10 min no minimum turnover (Rs lakh)
 WINDOW = int(os.environ.get("OV_WINDOW", "10"))           # ATM +- N strikes
 COOLDOWN = int(os.environ.get("OV_COOLDOWN_MIN", "45"))
+TOP = int(os.environ.get("OV_TOP", "3"))                  # ek run ma fakat top N (turnover pramane) ek j message ma
 KEEP = 30
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 
@@ -109,6 +110,21 @@ def quote_batch(quote_once, api, exch, tokens):
     return out
 
 
+def oi_tag(doi, pct):
+    """Fakat varnan (salah nathi): OI ane bhav na pharak thi shu thayu hovanu lage."""
+    if doi is None or pct is None:
+        return "OI/bhav no pharak malyo nathi"
+    if doi >= 3 and pct > 0.5:
+        return "OI vadhyo + bhav vadhyo: navi position, kharidi jevu"
+    if doi >= 3 and pct < -0.5:
+        return "OI vadhyo + bhav ghatyo: navi position, writing jevu"
+    if doi <= -3 and pct > 0.5:
+        return "OI ghatyo + bhav vadhyo: short covering jevu"
+    if doi <= -3 and pct < -0.5:
+        return "OI ghatyo + bhav ghatyo: long band thai rahya"
+    return "OI ma khas pharak nathi (volume j vadhyu)"
+
+
 def lakh(x):
     return f"{x / 1e5:,.1f} lakh"
 
@@ -163,7 +179,8 @@ def analyse(cfg, spot, chain, strikes, atm, quotes, prev, now_iso, same_day, ale
                    + f" | Spot {spot:,.1f} (ATM {atm:g}, nazdik round level {near:g})\n"
                    "Mahiti: moti activity. Direction nathi (buy ke write, hedge pan hoi shake). Salah nathi, nirnay tamaro.")
             alerts.append({"id": f"{key}|{now_iso}", "ts": now_iso, "index": cfg["name"], "strike": r["k"], "side": side,
-                           "ratio": round(ratio, 1), "text": txt})
+                           "ratio": round(ratio, 1), "text": txt, "turn": turnover, "dist": r["k"] - spot, "round": r["round"],
+                           "ltp": r["ltp"], "pct": r["pct"], "doi": r["doi"], "tag": oi_tag(r["doi"], r["pct"])})
     return alerts, snap
 
 
@@ -193,6 +210,21 @@ def send_tg(text):
             print("tg send exc", str(e).replace(tok, "***")[:120], flush=True)
         time.sleep(2 * (i + 1))
     return False
+
+
+def digest(top, total):
+    n = len(top)
+    head = "OPTION VOLUME SPIKE" + (f" | top {n} of {total}" if total > n else (f" | {n}" if n > 1 else ""))
+    out = [head]
+    for i, a in enumerate(top, 1):
+        sgn = "+" if a["dist"] >= 0 else "-"
+        pc = f" ({a['pct']:+.1f}%)" if a.get("pct") is not None else ""
+        oi = f" | OI {a['doi']:+.1f}%" if a.get("doi") is not None else ""
+        out.append(f"{i}) {a['index']} {a['strike']:g} {a['side']}" + (" (round)" if a.get("round") else "")
+                   + f" | {a['ratio']}x | Rs {a['turn'] / 1e7:,.1f} cr | spot thi {sgn}{abs(a['dist']):,.0f} pts")
+        out.append(f"   LTP {a['ltp']:,.2f}{pc}{oi}: {a['tag']}")
+    out.append("Mahiti: moti activity. Direction nathi (hedge pan hoi shake). Salah nathi, nirnay tamaro.")
+    return "\n".join(out)
 
 
 def main():
@@ -233,9 +265,12 @@ def main():
         print(cfg["name"], status[cfg["name"]], flush=True)
     for k, v in prev_all.items():                      # je strike aa vakhate nathi aavya, tenu juno snapshot rakho
         new_snap.setdefault(k, v)
-    for a in new_alerts:                               # tarat Telegram ma (site pachhi pharvar na moke: sent=True)
-        a["sent"] = send_tg(a["text"])
-        print("alert", a["index"], a["strike"], a["side"], "telegram:", a["sent"], flush=True)
+    if new_alerts:                                     # ek run na badha spike -> ek j message (top TOP, turnover pramane)
+        ranked = sorted(new_alerts, key=lambda a: -a.get("turn", 0))
+        ok = send_tg(digest(ranked[:TOP], len(ranked)))
+        for a in new_alerts:                           # site pachhi pharvar na moke
+            a["sent"] = ok
+            print("alert", a["index"], a["strike"], a["side"], "telegram:", ok, flush=True)
     alerts = (out.get("alerts") or []) + new_alerts
     save_json(OUT, {"updated": now_iso, "alerts": alerts[-KEEP:], "status": status})
     save_json(STATE, {"date": today.isoformat(), "snap": new_snap, "alerted": alerted, "ts": now_iso})
